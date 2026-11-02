@@ -1,0 +1,85 @@
+﻿name: Generate Linux Python Lock
+
+on:
+  push:
+    branches:
+      - document-search-bm25
+      - chore/linux-lock-ci
+    paths:
+      - "rag_api_project/requirements.txt"
+      - "rag_api_project/requirements-linux-py311.lock.txt"
+      - ".github/workflows/linux-lock-snapshot.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-lock:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: rag_api_project
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip check
+
+      - name: Run regression tests
+        run: python -m pytest tests -q
+
+      - name: Generate Linux lock snapshot
+        run: |
+          python -m pip freeze --all |
+            grep -vE '^(pip|wheel)==' > requirements-linux-py311.lock.txt
+
+          python -m pip install --dry-run \
+            -r requirements-linux-py311.lock.txt
+
+          wc -l requirements-linux-py311.lock.txt
+
+      - name: Upload Linux lock artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: requirements-linux-py311
+          path: rag_api_project/requirements-linux-py311.lock.txt
+          retention-days: 7
+          if-no-files-found: error
+  verify-lock:
+    name: Verify clean Linux installation
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: rag_api_project
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir -r requirements-linux-py311.lock.txt
+          python -m pip check
+
+      - name: Run regression tests
+        run: python -m pytest tests -q
