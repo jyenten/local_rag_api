@@ -26,6 +26,7 @@ Příručky mají samostatný obsah kapitol a závěrečný odkaz nahoru. / Guid
 | Architektura / Architecture | [Česky](cs/ARCHITECTURE.md#cz) | [English](en/ARCHITECTURE.md#en) |
 | Plán fází / Phase plan | [Česky](cs/ROADMAP.md#cz) | [English](en/ROADMAP.md#en) |
 | Vývoj a revize / Development and review | [Česky](cs/DEVELOPMENT_GUIDE.md#cz) | [English](en/DEVELOPMENT_GUIDE.md#en) |
+| Experiment n8n / LangGraph / Codex | [Česky](cs/DEV_LOOP.md#cz) | [English](en/DEV_LOOP.md#en) |
 | Deník učení / Learning log | [Česky](cs/LEARNING_LOG.md#cz) | [English](en/LEARNING_LOG.md#en) |
 
 ## Pravidla agentů / Agent rules

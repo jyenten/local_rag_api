@@ -1,0 +1,63 @@
+{
+  "name": "Local RAG lab - build-search-request",
+  "active": false,
+  "nodes": [
+    {
+      "id": "manual-trigger",
+      "name": "Start search task",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "run-development-loop",
+      "name": "Run search task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "retryOnFail": false,
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8765/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({request_id: '00000000-0000-4000-8000-' + String($execution.id).padStart(12, '0'), task_id: 'build-search-request'}) }}",
+        "options": {
+          "timeout": 900000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Start search task": {
+      "main": [
+        [
+          {
+            "node": "Run search task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}

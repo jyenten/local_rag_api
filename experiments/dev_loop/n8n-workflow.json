@@ -1,0 +1,43 @@
+{
+  "name": "Local RAG lab - LangGraph and Codex",
+  "active": false,
+  "nodes": [
+    {
+      "id": "manual-trigger",
+      "name": "Start experiment",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {}
+    },
+    {
+      "id": "run-development-loop",
+      "name": "Run LangGraph loop",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0],
+      "retryOnFail": false,
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8765/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({request_id: '00000000-0000-4000-8000-' + String($execution.id).padStart(12, '0'), task_id: 'normalize-question'}) }}",
+        "options": {
+          "timeout": 900000,
+          "response": {"response": {"responseFormat": "json"}}
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Start experiment": {
+      "main": [[{"node": "Run LangGraph loop", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1"},
+  "pinData": {},
+  "tags": []
+}
