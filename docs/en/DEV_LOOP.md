@@ -22,6 +22,8 @@
 - [One-shot Ollama probe](#one-shot-ollama-probe)
 - [Verification and limitations](#verification-and-limitations)
 
+- [Real BM25: direct before/after comparison](#real-bm25-direct-beforeafter-comparison)
+
 ## Scope
 
 The lab lives in `experiments/dev_loop/` on `experiment/autonomous-dev`.
@@ -684,3 +686,77 @@ separate. Tokens are CLI telemetry; exact model request counts and cost remain
 domain egress allowlist; the checker has no network, credentials or host mounts.
 This experiment is for local fixed tasks, not a public endpoint or untrusted
 branches.
+
+## Real BM25: direct before/after comparison
+
+`python -m experiments.dev_loop.real_bm25` reads the real
+`rag_api_project/app/retrievers/bm25.py` from the repository. Its original constructor
+tokenizes every document during validation and again when building the corpus.
+Codex is asked to tokenize each document once and reuse those exact tokens. The
+retrieval algorithm and configuration are preserved. This is not an intentionally
+broken fixture.
+
+Source is checked against public revision `a94150b0723df94cac5ea47a12fa364edb2e4798`
+of `jyenten/local_rag_api`. The manifest records SHA-256 hashes of the source,
+support modules and original tests. The command verifies the actual repository
+files before running and again before exporting. Different contents stop the run
+rather than overwriting local work. CRLF checkout is compared as canonical LF.
+
+Inside the isolated worker, the transfer filename is `question.py`; its contents
+are the complete real BM25 module. AST validation permits changes only to the
+body of `BM25Retriever.__init__`; imports, constants, constructor signature and
+`search` must remain semantically identical. Candidate code is not executed on
+the host. The existing Codex image and auth volume are reused. This operation is
+CLI-only and is not exposed through the n8n HTTP API.
+
+### Exact comparison
+
+- The same **68 original regression cases before and after**, copied unchanged.
+- Actual tokenizer calls during initialization on 1000 documents: the original
+  count is 2000; the required count is 1000.
+- Complete results of six fixed queries: documents, order, scores and metadata must match.
+- Seven paired initialization timings on the same 1000 × 128 token corpus. Both
+  versions are warmed up and execution order alternates. Counting instrumentation
+  is disabled during timing.
+
+The checker uses real `rank_bm25` and NumPy. Chroma storage is replaced by a
+synthetic collection, as in the original unit tests. It does not access user PDFs,
+Chroma storage, `.env` or DEV/RANDOM/TEST datasets. This measures BM25 construction
+on synthetic data, not full RAG quality or real-corpus latency. A timing improvement
+is not guaranteed or required for acceptance; passing original tests, identical
+outputs and fewer tokenizer calls are required. JSON retains raw times and data hash.
+
+### One real run
+
+From PowerShell in the experimental worktree root:
+
+```powershell
+cd D:\AI_roadmap_autonomous
+$labPython = '.\experiments\dev_loop\.venv\Scripts\python.exe'
+docker build -t local-rag-bm25-compare:1 -f experiments/dev_loop/real_bm25/Dockerfile experiments/dev_loop/real_bm25
+& $labPython -m experiments.dev_loop.real_bm25
+```
+
+No `DEV_LOOP_TOKEN` or new login is needed. Avoid other heavy workloads during
+measurement. Each run creates a fresh directory under
+`experiments/dev_loop/.runs/real-bm25/<UUID>/` with `result.json`, `before.py`,
+`workspace/question.py`, standalone `report.html` and, on `review_ready`,
+`candidate.patch` naming the real project path. Open the latest report:
+
+```powershell
+$run = Get-ChildItem .\experiments\dev_loop\.runs\real-bm25 -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+Start-Process (Join-Path $run.FullName 'report.html')
+```
+
+The report separates initialization milliseconds, elapsed Codex worker time
+including its Docker overhead (`codex_worker_elapsed_s`) and the whole run
+(`duration_s`). Model cost and exact model request count remain unmeasured. There
+are at most three attempts; repairs use actual checker feedback. `candidate.patch`
+is a proposal for review; project source remains untouched, without commits,
+pushes or automatic application.
+
+Controller verification without model calls uses the existing
+`pytest experiments/dev_loop/tests` command. An optional live checker test (no
+model call) can be enabled with `DEV_LOOP_REAL_BM25_DOCKER_TESTS=1` and run through
+dev-loop's `tests/test_real_bm25.py`. Controller tests alone do not establish live
+Docker/Codex success.

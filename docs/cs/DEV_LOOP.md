@@ -22,6 +22,8 @@
 - [Jednorázový test Ollamy](#jednorázový-test-ollamy)
 - [Ověření a omezení](#ověření-a-omezení)
 
+- [Skutečný BM25: přímé srovnání před a po](#skutečný-bm25-přímé-srovnání-před-a-po)
+
 ## Rozsah
 
 Laboratoř žije v `experiments/dev_loop/` na větvi `experiment/autonomous-dev`.
@@ -660,3 +662,72 @@ na model a cena zůstávají `null`. Worker má síť bridge a pouze své auth v
 bez omezení provozu seznamem domén; checker nemá síť, credentials ani hostitelské
 mounty. Experiment je pro místní pevné úlohy, ne pro veřejný endpoint nebo
 nedůvěryhodné větve.
+
+## Skutečný BM25: přímé srovnání před a po
+
+`python -m experiments.dev_loop.real_bm25` načítá skutečný
+`rag_api_project/app/retrievers/bm25.py` z repozitáře. Původní implementace tokenizuje
+každý dokument při validaci a znovu při sestavení corpus. Codex dostane úkol ponechat
+jednu tokenizaci a znovu použít stejné tokeny. Nemění se vyhledávací algoritmus ani
+konfigurace retrievalu. Nejde o další úmyslně rozbitou fixture.
+
+Zdroj je ověřen proti veřejné revizi `a94150b0723df94cac5ea47a12fa364edb2e4798`
+repozitáře `jyenten/local_rag_api`. Manifest obsahuje SHA-256 zdroje, podpůrných
+modulů a původních testů. Příkaz kontroluje skutečný soubor i podpůrné moduly v
+zadaném repozitáři před během a znovu před exportem. Jiný obsah vede k zastavení,
+nikoli k přepsání místní práce. CRLF checkout se porovnává jako kanonické LF.
+
+Přenosové jméno uvnitř izolovaného workeru je `question.py`; obsah je kompletní
+reálný BM25 modul. AST kontrola dovoluje měnit pouze tělo `BM25Retriever.__init__`;
+importy, konstanty, signatura konstruktoru a metoda `search` musí zůstat sémanticky
+stejné. Kandidát se na hostiteli nespouští. Využije existující Codex image a auth
+volume. Tato konkrétní operace je dostupná přes CLI, nikoli přes n8n HTTP API.
+
+### Co přesně porovnáváme
+
+- Stejných **68 původních regresních případů před i po**, převzatých beze změn.
+- Počet volání skutečného tokenizeru během inicializace na 1000 dokumentech;
+  původní stav je 2000, požadovaný stav je 1000.
+- Úplné výsledky šesti pevných dotazů: dokumenty, pořadí, skóre a metadata se musí shodovat.
+- Sedm párových časů inicializace na stejném korpusu 1000 × 128 tokenů. Obě verze
+  se zahřejí a pořadí před/po se střídá. Čítač tokenizací není zapnutý při měření času.
+
+Checker používá skutečný `rank_bm25` a NumPy. Chroma storage nahrazuje syntetická
+kolekce, stejně jako původní jednotkové testy. Nepřistupuje k uživatelským PDF,
+Chroma databázi, `.env` ani DEV/RANDOM/TEST datasetům. Jde o měření sestavení BM25
+nad syntetickými daty, nikoli kvality celého RAG nebo jeho latence na reálném korpusu.
+Časový poměr není předem zaručen a není podmínkou přijetí; původní testy, shodné
+výstupy a pokles počtu tokenizací podmínkou jsou. Surové časy a hash dat jsou v JSON.
+
+### Jeden skutečný běh
+
+Z PowerShellu v kořeni experimentálního worktree:
+
+```powershell
+cd D:\AI_roadmap_autonomous
+$labPython = '.\experiments\dev_loop\.venv\Scripts\python.exe'
+docker build -t local-rag-bm25-compare:1 -f experiments/dev_loop/real_bm25/Dockerfile experiments/dev_loop/real_bm25
+& $labPython -m experiments.dev_loop.real_bm25
+```
+
+Nepotřebuje `DEV_LOOP_TOKEN` ani nové přihlášení. Během měření nespouštěj další
+výpočetně náročné úlohy. Výstupní složka je nová pro každý běh pod
+`experiments/dev_loop/.runs/real-bm25/<UUID>/`. Obsahuje `result.json`, `before.py`,
+`workspace/question.py`, samostatný `report.html` a při `review_ready` také
+`candidate.patch` s pravou cestou k souboru projektu. Zobraz poslední report:
+
+```powershell
+$run = Get-ChildItem .\experiments\dev_loop\.runs\real-bm25 -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+Start-Process (Join-Path $run.FullName 'report.html')
+```
+
+Report odděluje časy inicializace v milisekundách, čas Codex workeru včetně jeho
+Docker režie (`codex_worker_elapsed_s`) a celý běh (`duration_s`). Modelová cena a
+přesný počet modelových požadavků nejsou měřené. Nejvýše jsou tři pokusy, opravy
+vycházejí ze skutečných výsledků kontrol. `candidate.patch` je návrh ke kontrole;
+zdroj projektu zůstává nedotčený, bez commitu/pushe či automatického aplikování.
+
+Ověření řadiče bez modelu používá dosavadní příkaz `pytest experiments/dev_loop/tests`.
+Volitelný živý test checkeru (bez modelového volání) lze povolit pomocí
+`DEV_LOOP_REAL_BM25_DOCKER_TESTS=1` a spustit `tests/test_real_bm25.py` pod dev-loop.
+Lokální kontroly řadiče samy neprokazují živý Docker/Codex běh.

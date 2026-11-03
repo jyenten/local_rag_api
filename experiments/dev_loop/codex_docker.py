@@ -129,6 +129,13 @@ class DockerCodexWorker:
         self.image_id: str | None = None
         self.attempt_records: list[dict] = []
 
+    def parse_artifact(self, output: str) -> tuple[dict[str, str], dict | None]:
+        """Fixed local specializations can validate a complete repository module."""
+        if len(self.task.artifacts) > 1:
+            return parse_files_response(output)
+        code, usage = parse_response(output, self.task.function_name)
+        return {"question.py": code}, usage
+
     def implement(self, workspace: Path, attempt: int, feedback: str) -> str:
         sources = candidate_files(workspace, self.task.artifacts)
         multiple = len(self.task.artifacts) > 1
@@ -193,13 +200,12 @@ class DockerCodexWorker:
                 raise InfrastructureError(
                     f"Codex container exited with code {result.returncode}; check container login status and account limits"
                 )
+            files, usage = self.parse_artifact(result.stdout)
             if multiple:
-                files, usage = parse_files_response(result.stdout)
                 hashes = {"files_sha256": {name: hashlib.sha256(code.encode("utf-8")).hexdigest()
                                            for name, code in files.items()}}
             else:
-                code, usage = parse_response(result.stdout, self.task.function_name)
-                files = {"question.py": code}
+                code = files["question.py"]
                 hashes = {"code_sha256": hashlib.sha256(code.encode("utf-8")).hexdigest()}
             record.update(completed=True, usage=usage, **hashes)
         finally:

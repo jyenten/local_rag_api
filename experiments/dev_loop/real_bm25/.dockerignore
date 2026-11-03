@@ -1,0 +1,7 @@
+**
+!requirements.txt
+!vendor/
+!vendor/**
+!benchmark.py
+!container_entry.py
+!Dockerfile

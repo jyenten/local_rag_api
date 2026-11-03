@@ -1,0 +1,35 @@
+{
+  "repository": "jyenten/local_rag_api",
+  "source_commit": "a94150b0723df94cac5ea47a12fa364edb2e4798",
+  "target": "rag_api_project/app/retrievers/bm25.py",
+  "files": {
+    "rag_api_project/app/config.py": {
+      "vendor": "app/config.py",
+      "sha256": "815fa536ce3322c4be3abb7078e0d179cf2c44353aca7823e0be7437c2c852b1",
+      "vendor_sha256": "de69f472f15ee5b105b113a9a6c453214efb57417eb229ddb0109eaf62d52f3a"
+    },
+    "rag_api_project/document_search/normalize.py": {
+      "vendor": "document_search/normalize.py",
+      "sha256": "2187064950eaaec227452bb2dcb19ad45690534708d6a4996f873273785a5c78"
+    },
+    "rag_api_project/document_search/tokenize.py": {
+      "vendor": "document_search/tokenize.py",
+      "sha256": "bc733370d3c01436922200abcb327f6e93ebfff30e8a00291545c5e30e0e8ac6"
+    },
+    "rag_api_project/tests/retrievers/test_bm25.py": {
+      "vendor": "tests/test_bm25.py",
+      "sha256": "9997cba4ee8388695ab5b15f5ff1ba7e892c8e89b09a592599f7480bad686d9c"
+    }
+  },
+  "source_sha256": "1ee250c07968741736f003d6c24931e1986115af9e28479fc6485d07e66021b6",
+  "regression_test_count": 68,
+  "dataset_sha256": "d305af9c7a3a6eaec80c2bc7e2a73eaca7c391989ebc7bcd8b1a0a90d2e09b61",
+  "queries": [
+    "term0",
+    "term30 term31",
+    "TERM90",
+    "term172",
+    "unrelated",
+    "term5 term170"
+  ]
+}
