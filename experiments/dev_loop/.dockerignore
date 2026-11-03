@@ -5,9 +5,11 @@
 !checks/pytest.ini
 !checks/test_question.py
 !checks/test_search_request.py
+!checks/test_search_package.py
 !docker/
 !docker/Dockerfile
 !docker/requirements.txt
 !docker/container_entry.py
 !docker/Codex.Dockerfile
 !docker/response.schema.json
+!docker/files.schema.json

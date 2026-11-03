@@ -16,6 +16,7 @@ RUN npm install --global @openai/codex@0.162.1 \
 
 ENV HOME=/home/node CODEX_HOME=/home/node/.codex SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 COPY docker/response.schema.json /opt/codex-lab/response.schema.json
+COPY docker/files.schema.json /opt/codex-lab/files.schema.json
 USER 1000:1000
 WORKDIR /work
 ENTRYPOINT ["codex"]

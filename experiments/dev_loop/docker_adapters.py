@@ -112,13 +112,26 @@ def bounded_process(command: list[str], cwd: Path, *, input_text: str,
 
 
 def candidate_source(workspace: Path) -> str:
-    path = workspace / "question.py"
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_SOURCE_BYTES:
-        raise InfrastructureError("Candidate must be a regular UTF-8 file of at most 64 KiB")
-    try:
-        return path.read_text(encoding="utf-8")
-    except UnicodeError as exc:
-        raise InfrastructureError("Candidate is not UTF-8") from exc
+    return candidate_files(workspace, ("question.py",))["question.py"]
+
+
+def candidate_files(workspace: Path, names: tuple[str, ...]) -> dict[str, str]:
+    sources = {}
+    total = 0
+    for name in names:
+        if not re.fullmatch(r"[a-z_]+\.py", name):
+            raise InfrastructureError("Artifacts must have fixed flat Python filenames")
+        path = workspace / name
+        if path.is_symlink() or not path.is_file():
+            raise InfrastructureError("Candidate must be a regular UTF-8 file of at most 64 KiB")
+        total += path.stat().st_size
+        if total > MAX_SOURCE_BYTES:
+            raise InfrastructureError("Combined candidate source exceeds 64 KiB")
+        try:
+            sources[name] = path.read_text(encoding="utf-8")
+        except UnicodeError as exc:
+            raise InfrastructureError("Candidate is not UTF-8") from exc
+    return sources
 
 
 class DockerRunner:
@@ -130,7 +143,7 @@ class DockerRunner:
         self.timeout = timeout
 
     def invoke(self, mode: str, payload: dict, cwd: Path) -> tuple[ProcessResult, dict]:
-        if mode not in {"demo-worker", "check"}:
+        if mode not in {"demo-worker", "check", "check-files"}:
             raise InfrastructureError("Unknown container operation")
         executable = shutil.which("docker")
         if executable is None:
@@ -170,8 +183,9 @@ class DockerRunner:
                 response = json.loads(result.stdout)
             except (ValueError, RecursionError) as exc:
                 raise InfrastructureError("Invalid runner JSON response") from exc
+            expected_protocol = 2 if mode == "check-files" else 1
             if (not isinstance(response, dict) or type(response.get("protocol")) is not int
-                    or response["protocol"] != 1):
+                    or response["protocol"] != expected_protocol):
                 raise InfrastructureError("Unknown runner response protocol")
             return result, response
         finally:
@@ -221,14 +235,16 @@ class DockerPytestChecker:
     def check(self, workspace: Path, phase: str) -> ProcessResult:
         if phase not in {"baseline", "acceptance"}:
             raise InfrastructureError("Unknown verification phase")
-        payload = {
-            "source": candidate_source(workspace), "phase": phase,
-        }
+        multiple = len(self.task.artifacts) > 1
+        payload = ({"files": candidate_files(workspace, self.task.artifacts), "phase": phase}
+                   if multiple else {"source": candidate_source(workspace), "phase": phase})
         if self.task_id != NORMALIZE.task_id:
             payload["task_id"] = self.task_id
-        process, response = self.runner.invoke("check", payload, workspace)
+        process, response = self.runner.invoke("check-files" if multiple else "check", payload, workspace)
         if self.task_id != NORMALIZE.task_id and response.get("task_id") != self.task_id:
-            raise InfrastructureError("Checker image does not identify the requested task; build local-rag-dev-loop:2")
+            raise InfrastructureError(f"Checker image does not identify the requested task; build {self.task.checker_image}")
+        if multiple and response.get("files") != list(self.task.artifacts):
+            raise InfrastructureError("Checker did not identify the complete fixed artifact set")
         code, stdout, stderr = (response.get(key) for key in ("returncode", "stdout", "stderr"))
         if (type(code) is not int or code not in {0, 1} or code != process.returncode
                 or not isinstance(stdout, str) or not isinstance(stderr, str)):

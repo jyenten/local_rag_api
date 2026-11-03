@@ -19,7 +19,7 @@ class RunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     request_id: UUID
-    task_id: Literal["normalize-question", "build-search-request"] = TASK_ID
+    task_id: Literal["normalize-question", "build-search-request", "build-search-package"] = TASK_ID
 
 
 def create_app(worker: Worker, checker: Checker, runs_dir: Path, token: str) -> FastAPI:

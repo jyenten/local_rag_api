@@ -18,6 +18,7 @@
 - [Codex in Docker with ChatGPT](#codex-in-docker-with-chatgpt)
 - [Controlled repair probe](#controlled-repair-probe)
 - [Second task: build-search-request](#second-task-build-search-request)
+- [Two files: build-search-package](#two-files-build-search-package)
 - [One-shot Ollama probe](#one-shot-ollama-probe)
 - [Verification and limitations](#verification-and-limitations)
 
@@ -604,3 +605,82 @@ still CLI telemetry; actual model request count and price remain unmeasured.
 Only the networked Codex worker gets its auth volume. The checker has no network,
 host mounts or credentials. Fixtures and checks remain separate; the host only
 saves candidate Python as text.
+
+## Two files: build-search-package
+
+This third fixed task tests cooperation between two modules. Its only allowed
+artifacts are `validation.py` and `search_request.py`, initialized from fixtures
+in a separate workspace. It does not give an agent access to the repository.
+
+| Module | Contract |
+| --- | --- |
+| `validation.py` | `normalize_query(query: str) -> str`: the same type checks and normalization as the second task. `validate_top_k(top_k: int) -> int`: exact `int`, range 1–20, returning the unchanged valid value. No imports. |
+| `search_request.py` | Only `import validation` without an alias and `build_search_request(query: str, top_k: int = 5) -> dict`. Call `validation.normalize_query` first, then `validation.validate_top_k`; use both results in a fresh `query`/`top_k` dictionary. Propagate exceptions unchanged. |
+
+The model returns `{"files":{"validation.py":"…","search_request.py":"…"}}`.
+The controller requires the exact complete pair, nonempty UTF-8 sources, valid AST
+and a combined 64 KiB limit. It rejects extra paths, missing modules, other imports
+and unexpected module-level statements. AST validation is not a security sandbox;
+candidate Python runs only inside the offline checker. The entire response is
+validated before writing either file, after worker cleanup. Writing the pair is
+not atomic: an I/O error can leave a partial artifact, but the graph stops with
+`infrastructure_error` before verification. Inspect that workspace; a fresh ID
+starts from fresh fixtures.
+
+The checker uses `check-files`, protocol 2, verified task ID, a complete manifest
+and JUnit evidence for all **52 tests**. Baseline is `2 passed, 50 skipped`;
+acceptance allows no skips. Tests also exercise validators directly, delegation,
+call order, returned values and exception identity. Protocol 1 and the default
+images of the previous tasks remain supported.
+
+In PowerShell, build new tags to preserve the existing images:
+
+```powershell
+cd D:\AI_roadmap_autonomous
+$labPython = '.\experiments\dev_loop\.venv\Scripts\python.exe'
+& $labPython -m pytest experiments/dev_loop/tests -q -p no:cacheprovider
+docker build -t local-rag-dev-loop:3 -f experiments/dev_loop/docker/Dockerfile experiments/dev_loop
+docker build -t local-rag-codex:0.162.1-multifile -f experiments/dev_loop/docker/Codex.Dockerfile experiments/dev_loop
+```
+
+First run four actual integration cases without a model call: the new suite,
+checker compatibility with both previous tasks and readability of the new Codex
+schema without network access or an auth volume. Tests without Docker do not
+replace these checks.
+
+```powershell
+$env:DEV_LOOP_PACKAGE_DOCKER_TESTS = '1'
+& $labPython -m pytest experiments/dev_loop/tests/test_multifile.py -q -p no:cacheprovider
+Remove-Item Env:DEV_LOOP_PACKAGE_DOCKER_TESTS
+& $labPython -m experiments.dev_loop --task build-search-package --backend codex --isolation docker
+```
+
+The final command is a real Codex call. It reuses `local-rag-codex-auth`; no new
+login is needed. Expect task ID `build-search-package`, `review_ready`, `52 passed`,
+both names in `allowed_files`, a diff for both modules and a `files_sha256` map
+in `worker_attempts`. The number of attempts is not guaranteed; the limit is
+three. `committed` and `applied_to_rag` remain `false`. One run is not a general
+benchmark of project editing ability.
+
+After success, stop the old server with Ctrl+C. In the window containing the
+original `DEV_LOOP_TOKEN`, start:
+
+```powershell
+& $labPython -m experiments.dev_loop --task build-search-package --backend codex --isolation docker --serve --host 0.0.0.0 --allow-non-loopback
+```
+
+Import `experiments/dev_loop/n8n-package-workflow.json` and select the existing
+Header Auth. This inactive manual workflow has one HTTP node without automatic
+retries, a 900000 ms timeout and URL `http://host.docker.internal:8765/runs`.
+Start a fresh full execution. Task ID must match the server; HTTP clients cannot
+supply file contents or custom instructions. Reusing a request ID returns its
+saved result and does not create another measurement.
+
+For a separate batch, add e.g.
+`--cycles 20 --report-dir experiments/dev_loop/.runs/reports/package-20-local`
+to the CLI command without `--serve`. Keep success rates of different tasks
+separate. Tokens are CLI telemetry; exact model request counts and cost remain
+`null`. The worker has bridge networking and only its auth volume, without a
+domain egress allowlist; the checker has no network, credentials or host mounts.
+This experiment is for local fixed tasks, not a public endpoint or untrusted
+branches.

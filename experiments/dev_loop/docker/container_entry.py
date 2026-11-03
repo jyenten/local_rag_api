@@ -10,7 +10,7 @@ MAX_SOURCE_BYTES = 65536
 
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in {"demo-worker", "check"}:
+    if len(sys.argv) != 2 or sys.argv[1] not in {"demo-worker", "check", "check-files"}:
         raise ValueError("Unknown operation")
     # --isolated Python does not add the script directory; add only our immutable image path.
     sys.path.insert(0, "/opt/dev-loop")
@@ -22,12 +22,24 @@ def main():
         raise ValueError("Request too large")
     payload = json.loads(raw)
     task = get_task(payload.get("task_id", NORMALIZE.task_id))
-    source = payload["source"]
-    if not isinstance(source, str) or len(source.encode("utf-8")) > MAX_SOURCE_BYTES:
-        raise ValueError("Invalid source")
     workspace = Path("/work")
     candidate = workspace / "question.py"
-    candidate.write_text(source, encoding="utf-8")
+    multiple = len(task.artifacts) > 1
+    if multiple:
+        if sys.argv[1] != "check-files":
+            raise ValueError("Multiple artifacts require check-files")
+        files = payload.get("files")
+        if not isinstance(files, dict) or set(files) != set(task.artifacts):
+            raise ValueError("Invalid artifact set")
+    else:
+        if sys.argv[1] == "check-files":
+            raise ValueError("This task requires a single source")
+        files = {"question.py": payload["source"]}
+    if (any(not isinstance(source, str) for source in files.values())
+            or sum(len(source.encode("utf-8")) for source in files.values()) > MAX_SOURCE_BYTES):
+        raise ValueError("Invalid source")
+    for name, source in files.items():
+        (workspace / name).write_bytes(source.encode("utf-8"))
     if sys.argv[1] == "demo-worker":
         if task.task_id != NORMALIZE.task_id:
             raise ValueError("Demo worker supports normalize-question only")
@@ -52,9 +64,12 @@ def main():
     if junit.is_symlink() or (junit.exists() and junit.stat().st_size > 65536):
         raise ValueError("Invalid evidence file")
     evidence = junit.read_text(encoding="utf-8") if junit.is_file() else ""
-    print(json.dumps({"protocol": 1, "task_id": task.task_id, "returncode": result.returncode,
+    response = {"protocol": 2 if multiple else 1, "task_id": task.task_id, "returncode": result.returncode,
                       "stdout": result.stdout[-8000:], "stderr": result.stderr[-8000:],
-                      "junit": evidence}))
+                      "junit": evidence}
+    if multiple:
+        response["files"] = list(task.artifacts)
+    print(json.dumps(response))
     return result.returncode
 
 

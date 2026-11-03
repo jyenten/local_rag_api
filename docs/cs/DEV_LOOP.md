@@ -18,6 +18,7 @@
 - [Codex v Dockeru přes ChatGPT](#codex-v-dockeru-přes-chatgpt)
 - [Kontrolovaný test opravy](#kontrolovaný-test-opravy)
 - [Druhá úloha: build-search-request](#druhá-úloha-build-search-request)
+- [Dva soubory: build-search-package](#dva-soubory-build-search-package)
 - [Jednorázový test Ollamy](#jednorázový-test-ollamy)
 - [Ověření a omezení](#ověření-a-omezení)
 
@@ -586,3 +587,76 @@ výsledky obou zadání do jedné míry úspěšnosti. Tokeny jsou stále teleme
 počet požadavků na model a cena zůstávají neměřené. Přihlašovací volume zůstává jen
 u síťového Codex workeru; checker nemá síť, hostitelské mounty ani credentials.
 Fixtures a kontroly jsou oddělené; hostitel kandidátní Python pouze ukládá jako text.
+
+## Dva soubory: build-search-package
+
+Třetí pevná úloha ověřuje spolupráci dvou modulů. Jedinými povolenými artefakty
+jsou `validation.py` a `search_request.py` v samostatném workspace z fixtures.
+Nejde o agenta s přístupem k celému repozitáři.
+
+| Modul | Kontrakt |
+| --- | --- |
+| `validation.py` | `normalize_query(query: str) -> str`: stejné typové kontroly a normalizace jako u druhé úlohy. `validate_top_k(top_k: int) -> int`: přesně `int`, rozsah 1–20, vrátit platnou hodnotu beze změny. Bez importů. |
+| `search_request.py` | Pouze `import validation` bez aliasu a `build_search_request(query: str, top_k: int = 5) -> dict`. Zavolat nejprve `validation.normalize_query`, potom `validation.validate_top_k`; oba výsledky použít v novém slovníku `query`/`top_k`. Výjimky předat beze změny. |
+
+Model vrací `{"files":{"validation.py":"…","search_request.py":"…"}}`.
+Řadič vyžaduje přesnou úplnou dvojici, neprázdné UTF-8 zdroje, platný AST a souhrnný
+limit 64 KiB. Odmítne další cesty, chybějící modul, jiné importy a neočekávané
+příkazy na úrovni modulu. AST není bezpečnostní sandbox; kandidátní Python se
+spouští pouze v offline checkeru. Celá odpověď se validuje před prvním zápisem
+po odstranění workeru. Zápis dvojice není atomický: chyba I/O může zanechat
+částečný artefakt, ale graf skončí jako `infrastructure_error` před ověřením.
+Takový workspace zkontroluj; nové ID vytvoří nové fixtures.
+
+Checker používá `check-files`, protokol 2, ověřené task ID, úplný manifest a JUnit
+důkaz všech **52 testů**. Baseline: `2 passed, 50 skipped`; acceptance bez přeskočení.
+Testuje i validátory přímo, delegování, pořadí volání, použití návratových hodnot a
+identitu výjimek. Protokol 1 a výchozí image předchozích úloh zůstávají podporované.
+
+V PowerShellu sestav nové tagy, které zachovají dosavadní image:
+
+```powershell
+cd D:\AI_roadmap_autonomous
+$labPython = '.\experiments\dev_loop\.venv\Scripts\python.exe'
+& $labPython -m pytest experiments/dev_loop/tests -q -p no:cacheprovider
+docker build -t local-rag-dev-loop:3 -f experiments/dev_loop/docker/Dockerfile experiments/dev_loop
+docker build -t local-rag-codex:0.162.1-multifile -f experiments/dev_loop/docker/Codex.Dockerfile experiments/dev_loop
+```
+
+Nejprve spusť čtyři skutečné integrační případy bez modelového volání: nová sada,
+kompatibilita checkeru se dvěma původními úlohami a čitelnost nového Codex schématu
+bez sítě a přihlašovacího volume. Lokální testy bez Dockeru je nenahrazují.
+
+```powershell
+$env:DEV_LOOP_PACKAGE_DOCKER_TESTS = '1'
+& $labPython -m pytest experiments/dev_loop/tests/test_multifile.py -q -p no:cacheprovider
+Remove-Item Env:DEV_LOOP_PACKAGE_DOCKER_TESTS
+& $labPython -m experiments.dev_loop --task build-search-package --backend codex --isolation docker
+```
+
+Poslední příkaz je skutečné volání Codexu. Použije existující
+`local-rag-codex-auth`, nové přihlášení není potřeba. Očekávej task ID
+`build-search-package`, `review_ready`, `52 passed`, oba názvy v `allowed_files`,
+diff obou modulů a mapu `files_sha256` v `worker_attempts`. Počet pokusů není
+zaručen, nejvýše jsou tři. `committed` a `applied_to_rag` zůstávají `false`.
+Jeden běh není obecným benchmarkem úprav projektů.
+
+Po úspěchu zastav starý server Ctrl+C. V okně s původním `DEV_LOOP_TOKEN` spusť:
+
+```powershell
+& $labPython -m experiments.dev_loop --task build-search-package --backend codex --isolation docker --serve --host 0.0.0.0 --allow-non-loopback
+```
+
+Importuj `experiments/dev_loop/n8n-package-workflow.json` a vyber existující Header
+Auth. Neaktivní ruční workflow má jediný HTTP uzel bez automatického retry, timeout
+900000 ms a URL `http://host.docker.internal:8765/runs`. Spusť celé nové provedení.
+Task ID musí odpovídat serveru; HTTP klient nesmí dodávat obsah souborů nebo vlastní
+instrukce. Opakování request ID vrací uložený výsledek, není dalším měřením.
+
+Pro samostatnou dávku přidej ke CLI příkazu bez `--serve` například
+`--cycles 20 --report-dir experiments/dev_loop/.runs/reports/package-20-local`.
+Nemíchej úspěšnost různých zadání. Tokeny jsou telemetrie CLI; přesný počet požadavků
+na model a cena zůstávají `null`. Worker má síť bridge a pouze své auth volume,
+bez omezení provozu seznamem domén; checker nemá síť, credentials ani hostitelské
+mounty. Experiment je pro místní pevné úlohy, ne pro veřejný endpoint nebo
+nedůvěryhodné větve.

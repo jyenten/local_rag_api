@@ -18,7 +18,7 @@ def main() -> int:
     parser.add_argument("--isolation", choices=["host", "docker"], default="host")
     parser.add_argument("--task", choices=TASK_IDS, default=TASK_ID)
     parser.add_argument("--docker-image", default=None, help="Override the fixed task's checker image")
-    parser.add_argument("--codex-image", default="local-rag-codex:0.162.1")
+    parser.add_argument("--codex-image", default=None, help="Override the fixed task's Codex image")
     parser.add_argument("--codex-auth-volume", default="local-rag-codex-auth")
     parser.add_argument("--serve", action="store_true", help="Expose the local n8n HTTP bridge")
     parser.add_argument("--host", default="127.0.0.1")
@@ -32,7 +32,7 @@ def main() -> int:
     args = parser.parse_args()
     task = get_task(args.task)
     if args.task != TASK_ID and (args.backend != "codex" or args.isolation != "docker"):
-        parser.error("build-search-request requires --backend codex --isolation docker")
+        parser.error(f"{args.task} requires --backend codex --isolation docker")
     if args.cycles is not None:
         if not 1 <= args.cycles <= 20:
             parser.error("--cycles must be between 1 and 20")
@@ -49,7 +49,7 @@ def main() -> int:
             from .codex_docker import DockerCodexWorker
 
             try:
-                worker = DockerCodexWorker(args.codex_image, args.codex_auth_volume, task_id=args.task)
+                worker = DockerCodexWorker(args.codex_image or task.codex_image, args.codex_auth_volume, task_id=args.task)
             except ValueError as exc:
                 parser.error(str(exc))
     else:

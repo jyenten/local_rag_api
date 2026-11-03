@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "object",
+      "properties": {
+        "validation.py": {"type": "string"},
+        "search_request.py": {"type": "string"}
+      },
+      "required": ["validation.py", "search_request.py"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["files"],
+  "additionalProperties": false
+}

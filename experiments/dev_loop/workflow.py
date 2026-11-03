@@ -35,26 +35,27 @@ class State(TypedDict):
     trace: list[dict]
 
 
-def protected_snapshot(workspace: Path) -> dict[str, str]:
-    """Audit every worker file except the explicitly writable question.py."""
+def protected_snapshot(workspace: Path, allowed_files: tuple[str, ...] = ("question.py",)) -> dict[str, str]:
+    """Audit everything except the controller-owned fixed artifact allowlist."""
     result = {}
     for path in workspace.rglob("*"):
         relative = path.relative_to(workspace).as_posix()
-        if relative == "question.py":
+        if relative in allowed_files:
             if path.is_symlink() or not path.is_file():
-                raise InfrastructureError("question.py must remain a regular file")
+                raise InfrastructureError("Allowed artifacts must remain regular files")
             continue
         if path.is_symlink():
             raise InfrastructureError("Symlinks are outside the allowed change scope")
         if path.is_file():
             result[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
-    if not (workspace / "question.py").is_file():
-        raise InfrastructureError("question.py was removed")
+    if any(not (workspace / name).is_file() for name in allowed_files):
+        raise InfrastructureError("An allowed artifact was removed")
     return result
 
 
-def build_graph(workspace: Path, worker: Worker, checker: Checker):
-    protected = protected_snapshot(workspace)
+def build_graph(workspace: Path, worker: Worker, checker: Checker, *,
+                allowed_files: tuple[str, ...] = ("question.py",)):
+    protected = protected_snapshot(workspace, allowed_files)
 
     def event(state, node, **values):
         return state["trace"] + [{"node": node, **values}]
@@ -82,8 +83,8 @@ def build_graph(workspace: Path, worker: Worker, checker: Checker):
 
     def verify(state):
         try:
-            if protected_snapshot(workspace) != protected:
-                raise InfrastructureError("Worker changed files outside question.py")
+            if protected_snapshot(workspace, allowed_files) != protected:
+                raise InfrastructureError("Worker changed files outside the allowed artifacts")
         except (InfrastructureError, OSError) as exc:
             return {"status": "scope_violation", "feedback": str(exc),
                     "trace": event(state, "verify", error=str(exc))}
@@ -93,8 +94,8 @@ def build_graph(workspace: Path, worker: Worker, checker: Checker):
             return {"status": "infrastructure_error", "feedback": str(exc),
                     "trace": event(state, "verify", error=str(exc))}
         try:
-            if protected_snapshot(workspace) != protected:
-                raise InfrastructureError("Files outside question.py changed during verification")
+            if protected_snapshot(workspace, allowed_files) != protected:
+                raise InfrastructureError("Files outside the allowed artifacts changed during verification")
         except (InfrastructureError, OSError) as exc:
             return {"status": "scope_violation", "feedback": str(exc),
                     "trace": event(state, "verify", error=str(exc))}
@@ -153,8 +154,13 @@ def run_job(request_id: str, task_id: str, runs_dir: Path, worker: Worker, check
     (run_dir / "request.json").write_text(json.dumps(identity), encoding="utf-8")
     workspace = run_dir / "workspace"
     workspace.mkdir()
-    original = (LAB / "fixture" / task.fixture).read_text(encoding="utf-8")
-    (workspace / "question.py").write_text(original, encoding="utf-8")
+    originals = {
+        name: ((LAB / "fixture" / task.fixture / name) if len(task.artifacts) > 1
+               else (LAB / "fixture" / task.fixture)).read_text(encoding="utf-8")
+        for name in task.artifacts
+    }
+    for name, source in originals.items():
+        (workspace / name).write_bytes(source.encode("utf-8"))
     # A separate Git root makes the worker workspace independent of the RAG worktree.
     # No initial commit, staging or remote is needed.
     try:
@@ -164,22 +170,28 @@ def run_job(request_id: str, task_id: str, runs_dir: Path, worker: Worker, check
                            workspace, timeout=10, env=process_environment())
         if init.returncode:
             raise InfrastructureError("Could not initialize worker Git workspace")
-        result = build_graph(workspace, worker, checker).invoke(
+        result = build_graph(workspace, worker, checker, allowed_files=task.artifacts).invoke(
             {"attempts": 0, "status": "pending", "feedback": "", "trace": []},
             {"recursion_limit": 12},
         )
     except (InfrastructureError, OSError) as exc:
         result = {"attempts": 0, "status": "infrastructure_error", "feedback": str(exc), "trace": []}
-    candidate = workspace / "question.py"
-    final = candidate.read_text(encoding="utf-8", errors="replace") if candidate.is_file() and not candidate.is_symlink() else ""
-    diff = "".join(difflib.unified_diff(original.splitlines(True), final.splitlines(True),
-                                       fromfile="before/question.py", tofile="after/question.py"))
+    diffs = []
+    for name, original in originals.items():
+        candidate = workspace / name
+        final = (candidate.read_text(encoding="utf-8", errors="replace")
+                 if candidate.is_file() and not candidate.is_symlink() else "")
+        diffs.extend(difflib.unified_diff(original.splitlines(True), final.splitlines(True),
+                                         fromfile=f"before/{name}", tofile=f"after/{name}"))
+    diff = "".join(diffs)
     report = {**identity, **result, "max_attempts": MAX_ATTEMPTS, "diff": diff,
               "workspace": str(workspace), "committed": False, "applied_to_rag": False,
               "isolation": getattr(worker, "isolation", "host"),
               "checker_isolation": getattr(checker, "isolation", "host"),
               "runner_image": getattr(checker, "image_id", None),
               "duration_s": round(time.perf_counter() - started, 6)}
+    if len(task.artifacts) > 1:
+        report["allowed_files"] = list(task.artifacts)
     if hasattr(worker, "attempt_records"):
         records = worker.attempt_records[record_start:]
         report.update(worker_image=getattr(worker, "image_id", None), worker_attempts=records,
