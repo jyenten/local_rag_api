@@ -27,7 +27,7 @@ class BM25Retriever:
         if count == 0:
             raise ValueError("Cannot index an empty Chroma collection.")
 
-        records: list[tuple[str, str, Metadata]] = []
+        records: list[tuple[str, str, Metadata, list[str]]] = []
 
         for offset in range(0, count, BATCH_SIZE):
             batch = collection.get(
@@ -57,7 +57,13 @@ class BM25Retriever:
                 if not isinstance(chunk_id, str) or not chunk_id.strip():
                     raise ValueError(f"Invalid chunk ID: {chunk_id!r}")
 
-                if not isinstance(document, str) or not tokenize(document):
+                if not isinstance(document, str):
+                    raise ValueError(
+                        f"Invalid document for chunk {chunk_id}"
+                    )
+
+                tokens = tokenize(document)
+                if not tokens:
                     raise ValueError(
                         f"Invalid document for chunk {chunk_id}"
                     )
@@ -81,7 +87,7 @@ class BM25Retriever:
                     )
 
                 records.append(
-                    (chunk_id, document, dict(metadata))
+                    (chunk_id, document, dict(metadata), tokens)
                 )
 
         records.sort(key=lambda record: record[0])
@@ -99,8 +105,8 @@ class BM25Retriever:
         self.metadatas = tuple(record[2] for record in records)
 
         corpus = [
-            tokenize(document)
-            for document in self.documents
+            record[3]
+            for record in records
         ]
 
         self.token_sets = tuple(
