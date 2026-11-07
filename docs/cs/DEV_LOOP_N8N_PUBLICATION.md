@@ -129,6 +129,111 @@ slučovat, udělovat výjimku z auditu ani schvalovat vlastní výsledek.
 Controller testy pokrývají token, rozsah a registraci běhů, souběh, redakci chyb,
 filtrování výsledku, loopback start a strukturu workflow bez volání modelu nebo
 GitHub zápisů. Neprokazují živý import n8n ani spojení přes Docker Desktop.
-Generování skutečného BM25 zůstává CLI-only; přidání dalšího skutečného úkolu nebo
-HTTP operace run-and-publish vyžaduje samostatný registrovaný úkol se zkontrolovaným
-zdrojem, povolenými soubory a nezávislým checkerem. Toto API takovou operaci nepovoluje.
+Generování skutečného BM25 je ve výchozím stavu vypnuté. Výslovná registrace na
+hostiteli popsaná níže může povolit pevný run-and-publish úkol. Jiné skutečné úkoly
+dál vyžadují samostatně zkontrolovaný zdroj, povolené soubory a nezávislý checker.
+
+## Volitelný nový skutečný úkol přes LangGraph a Codex
+
+Jde o **nové generování**, nikoli publikování starého výsledku. Ruční n8n běh může
+zavolat Codex přihlášený účtem, spustit dosavadní LangGraph baseline/implement/verify/
+repair graf (nejvýše tři pokusy) a následně nezávislý publisher. Spotřebovává limit
+účtu ChatGPT/Codex. Přesný počet modelových požadavků a peněžní cena nejsou měřeny;
+limit nových úloh není tokenový ani finanční strop. Plánovač a automatické HTTP
+opakování nejsou zapnuté.
+
+### Výslovná registrace na hostiteli
+
+Použij worktree s touto funkcí, např. `D:\AI_roadmap_n8n_jobs`. Před restartem zastav
+původní službu 8766 přes Ctrl+C v jejím okně. Zachovej uložený `DEV_LOOP_TOKEN`;
+pokud v novém okně není nastavený, obnov jej postupem výše.
+
+Vstupní zdroj musí obsahovat zkontrolovaný **původní** BM25 kód. Již vytvořené
+`D:\AI_roadmap_chroma_security` je vhodné, dokud jeho zdrojové soubory odpovídají
+manifestu. Optimalizované experimentální worktree se záměrně nepřijme.
+Ve zdrojovém worktree se nic neupravuje; ingest ani přístup k indexu neprobíhá.
+Worker dostává pouze známý veřejný modul, offline checker používá dosavadní
+syntetický korpus a 68 regresních testů.
+
+```powershell
+cd D:\AI_roadmap_n8n_jobs
+$labPython = 'D:\AI_roadmap_autonomous\experiments\dev_loop\.venv\Scripts\python.exe'
+$runRoot = 'D:\AI_roadmap_autonomous\experiments\dev_loop\.runs\real-bm25'
+$jobRoot = 'D:\AI_roadmap_autonomous\experiments\dev_loop\.runs\n8n-real-jobs'
+& $labPython -m experiments.dev_loop.publication_api --runs-root $runRoot --allow-run a5739357-6da4-4118-be18-5c038306e0e9 --source-repo D:\AI_roadmap_chroma_security --jobs-root $jobRoot
+```
+
+`--source-repo` výslovně povoluje pevný úkol `bm25-tokenize-once`. Bez něj cesty
+`/jobs` neexistují. Zdroj a jeho Git revize se kontrolují při registraci i znovu
+před novým během. Hostitelská gh kontrola ověří pevný repozitář a hashe zdroje,
+podpůrných modulů a testů jak na aktuálním `main`, tak ve zdrojovém commitu před
+voláním modelu. Po mergi PR #10 či změně zkontrolovaného zdroje/testů se úkol zastaví;
+neoptimalizuje opakovaně již přijatou změnu. Posun během generování se kontroluje
+znovu před publikováním.
+
+Výchozí povolení je **jedna nová úloha na proces služby**. Hostitel může výslovně
+nastavit `--max-new-jobs 1..20`. Restart tento limit relace obnoví; nejde o trvalý
+ani globální finanční limit. Existující ID zůstávají uložená a restart sám nikdy
+nepovoluje jejich nové generování. Používej jeden proces služby; nespouštěj více
+instancí nad stejným kořenem jako obcházení zamýšleného limitu.
+
+### Spuštění z n8n
+
+Nejprve ověř `/health` a kontejnerový test spojení výše. Importuj
+`experiments/dev_loop/n8n-real-bm25-workflow.json`, vyber dosavadní Header Auth a
+spusť celý workflow **jednou**. Obsahuje ruční trigger a jediný HTTP POST na
+`http://host.docker.internal:8766/jobs`. Tělo obsahuje přesně `task_id:
+bm25-tokenize-once` a UUID odvozené z `$execution.id`. Neobsahuje libovolný prompt,
+cestu, plánovač, automatické opakování ani uložené přihlášení.
+
+Nové úplné n8n spuštění vytvoří nové ID a může spotřebovat povolení jedné úlohy.
+Opakování stejného ID načte uložené generování; Codex se znovu nevolá. Po timeoutu
+nespouštěj druhou novou exekuci jako obnovu. Poznamenej první ID a zkontroluj jeho
+stav. Infrastrukturní chyba nevede k neomezeným opravám; původní maximum tří
+implementačních pokusů zůstává stejné.
+
+### Výsledky, uložený stav a obnova
+
+Pouze **`status: pr_ready`** potvrzuje dokončení generování i předání do PR. Samotné
+HTTP 200 nebo zelený n8n uzel toto nepotvrzuje. Další výsledné stavy:
+
+| Stav | Význam |
+| --- | --- |
+| `generating` / `publishing` | Uložený průběh dostupný přes dotaz na stav |
+| `generation_failed` | Stop kvůli baseline, acceptance, rozsahu nebo limitu pokusů; bez publikování |
+| `generation_error` | Neočekávané přerušení generování; model se automaticky neopakuje |
+| `publication_blocked` | Návrh uložený; před opakováním stejného ID ověř publisher/PR |
+| `pr_ready` | Vybraný PR výsledek je v `publication`; merge se neprovádí |
+
+Odpověď obsahuje `generation_status`, pokusy, počet worker invokací,
+`generation_cached` a vybrané údaje publikování. Nepřenáší zdroj, diff, surové logy
+ani lokální cesty. `worker_invocations` popisuje původní generování i u odpovědi z
+cache; není to počet nových volání vyvolaných daným HTTP požadavkem. Jiný platný
+návrh může kolidovat s existujícím PR #10 a publikování zablokovat. Controller tento
+PR nepřepíše jen kvůli zelenému výsledku.
+
+Hostitelské soubory jsou v `$jobRoot/requests/<UUID>/request.json` a `state.json`,
+vlastní report/návrh a případná účtenka publikování v `$jobRoot/runs/<UUID>/`.
+Identita požadavku a adresář vznikají před generováním. Pokud po přerušení chybí
+úplný konečný výsledek, vrátí se 409 a je nutná kontrola hostitele; generování se
+**nikdy** potichu neopakuje. Uložený dokončený stav `pr_ready` či neúspěšného
+generování se vrací bez nového modelu a bez nové GitHub kontroly. Jde o výsledek
+tehdejšího běhu, nikoli o aktuální stav PR/CI.
+
+Pokud generování prošlo a selhalo publikování, po kontrole hostitele opakuj **stejné
+ID**; znovu může běžet pouze publisher. Příklad v PowerShellu s uloženým tokenem v
+daném okně (`<UUID>` nahraď původním ID požadavku):
+
+```powershell
+$headers = @{ 'X-Dev-Loop-Token' = $env:DEV_LOOP_TOKEN }
+Invoke-RestMethod 'http://127.0.0.1:8766/jobs/<UUID>' -Headers $headers
+$body = @{ task_id = 'bm25-tokenize-once'; request_id = '<UUID>' } | ConvertTo-Json
+Invoke-RestMethod 'http://127.0.0.1:8766/jobs' -Method Post -Headers $headers -ContentType 'application/json' -Body $body
+```
+
+Autentizované `GET /tasks` ukazuje registraci a zbývající povolení v relaci,
+`GET /jobs/<UUID>` uložený stav bez generování. Nové ID nad limit dostane 429,
+aktivní/přerušený/kolizní běh 409. Neúspěšná kontrola zdroje zastaví postup před
+modelem. Diagnostické logy zůstávají na hostiteli. Zablokovaný i úspěšný PR dále
+vyžadují nezávislou kontrolu diffu, CI a bezpečnostních nálezů a výslovné schválení
+člověkem před mergem.

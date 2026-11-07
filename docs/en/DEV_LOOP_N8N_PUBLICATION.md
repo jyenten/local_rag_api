@@ -128,6 +128,111 @@ cannot merge, waive an audit finding or approve its own result.
 Controller tests cover token/scope/run registration, concurrency, error redaction,
 receipt filtering, loopback-only startup and workflow structure without model calls
 or GitHub writes. They do not prove a live n8n import or Docker Desktop connection.
-Real BM25 generation remains CLI-only; adding another real task or an HTTP
-run-and-publish operation requires a separate registered task with reviewed source,
-allowed files and independent checker. It is not enabled by this publication API.
+New real BM25 generation is disabled by default. The explicit host registration
+below can enable the fixed run-and-publish task. Other real tasks still require
+separately reviewed source, allowed files and an independent checker.
+
+## Optional new real task through LangGraph and Codex
+
+This is a **new generation** operation, not publication of old evidence. A manual
+n8n execution can invoke the account-authenticated Codex worker, run the existing
+LangGraph baseline/implement/verify/repair graph (maximum three attempts), then use
+the independent publisher. It consumes ChatGPT/Codex account allowance. Exact model
+request count and monetary cost remain unmeasured; the new-job limit is not a token
+or billing cap. No schedule or automatic HTTP retry is enabled.
+
+### Explicit host registration
+
+Use the worktree containing this feature, e.g. `D:\AI_roadmap_n8n_jobs`. Stop the old
+8766 service with Ctrl+C in its own window before restarting it. Preserve the saved
+`DEV_LOOP_TOKEN`; restore it as above if the new window does not have it.
+
+The source must contain the reviewed **original** BM25 code. The already created
+`D:\AI_roadmap_chroma_security` worktree is suitable while its source files still
+match the manifest. The optimized experimental worktree is intentionally unsuitable.
+No files in the source worktree are edited; there is no ingest or index access.
+The worker receives only the known public module, and the offline checker uses its
+existing synthetic corpus and 68 regression tests.
+
+```powershell
+cd D:\AI_roadmap_n8n_jobs
+$labPython = 'D:\AI_roadmap_autonomous\experiments\dev_loop\.venv\Scripts\python.exe'
+$runRoot = 'D:\AI_roadmap_autonomous\experiments\dev_loop\.runs\real-bm25'
+$jobRoot = 'D:\AI_roadmap_autonomous\experiments\dev_loop\.runs\n8n-real-jobs'
+& $labPython -m experiments.dev_loop.publication_api --runs-root $runRoot --allow-run a5739357-6da4-4118-be18-5c038306e0e9 --source-repo D:\AI_roadmap_chroma_security --jobs-root $jobRoot
+```
+
+`--source-repo` explicitly enables the fixed `bm25-tokenize-once` task. Without it,
+`/jobs` routes do not exist. Source files and their Git revision are checked at
+registration, and pinned again before each new job. A host gh preflight verifies
+the fixed repository and source/support/test hashes on both current `main` and the
+recorded source revision before model invocation. Once PR #10 is merged or the
+reviewed source/tests change, this task stops rather than repeatedly optimizing an
+already accepted change. A race after preflight is caught again before publication.
+
+By default **one new job per service process** is permitted. The host can explicitly
+set `--max-new-jobs 1..20`. Restarting the service resets this session allowance;
+it is not a durable/global spending limit. Existing job IDs remain durable and never
+regenerate merely because the service restarted. Keep one service process, and do
+not run multiple instances against the same root to bypass the intended allowance.
+
+### Run from n8n
+
+First verify `/health` and the container probe above. Import
+`experiments/dev_loop/n8n-real-bm25-workflow.json`, select the existing Header Auth,
+and execute the full workflow **once**. This workflow has a manual trigger and one
+HTTP POST to `http://host.docker.internal:8766/jobs`. Its body contains exactly
+`task_id: bm25-tokenize-once` and a UUID derived from `$execution.id`. It has no
+arbitrary prompt/path, schedule, automatic retry or embedded credential.
+
+A fresh full n8n execution creates a new ID and can consume the one-job allowance.
+Repeating the same request ID reads stored generation; it does not repeat Codex.
+Do not start a second fresh execution to recover from a timeout. Record the first
+request ID and inspect that job instead. Infrastructure errors never cause an
+unbounded repair loop; the original maximum of three implementation attempts remains.
+
+### Results, saved state and recovery
+
+Only **`status: pr_ready`** means generation and PR handoff completed. HTTP 200 or a
+green n8n node alone does not establish that condition. Other business outcomes:
+
+| Status | Meaning |
+| --- | --- |
+| `generating` / `publishing` | Saved progress, available through status lookup |
+| `generation_failed` | Baseline, acceptance, scope or attempt-limit stop; no publication |
+| `generation_error` | Generation stopped unexpectedly; no automatic model retry |
+| `publication_blocked` | Candidate saved; inspect publisher/PR state before retrying the same ID |
+| `pr_ready` | Selected PR receipt is in `publication`; no merge performed |
+
+The response includes `generation_status`, attempts, worker invocation count,
+`generation_cached` and selected publication metadata. It excludes source, diffs,
+raw logs and local paths. `worker_invocations` describes the original generation,
+including in cached responses; it is not a count of new calls made by that HTTP
+request. A different valid candidate may conflict with existing PR #10 and block
+publication. The controller does not overwrite that PR to force a green result.
+
+Host files are under `$jobRoot/requests/<UUID>/request.json` and `state.json`, plus
+`$jobRoot/runs/<UUID>/` containing the actual generation report/artifacts and any
+publication receipt. Request identity and directory creation precede generation.
+A missing/incomplete final generation result after interruption returns 409 and
+requires host inspection; it is **never** silently rerun. A saved completed
+`pr_ready`/failed-generation outcome is returned without new model calls or fresh
+GitHub checks. It records the outcome at that time, not current PR/CI status.
+
+If generation succeeded but publication failed, repeat the **same ID** after host
+inspection; only the publisher can run again. For example in PowerShell with the
+saved token in that window (replace `<UUID>` with the original request ID):
+
+```powershell
+$headers = @{ 'X-Dev-Loop-Token' = $env:DEV_LOOP_TOKEN }
+Invoke-RestMethod 'http://127.0.0.1:8766/jobs/<UUID>' -Headers $headers
+$body = @{ task_id = 'bm25-tokenize-once'; request_id = '<UUID>' } | ConvertTo-Json
+Invoke-RestMethod 'http://127.0.0.1:8766/jobs' -Method Post -Headers $headers -ContentType 'application/json' -Body $body
+```
+
+`GET /tasks` (authenticated) reports registration and the remaining session
+allowance; `GET /jobs/<UUID>` reports recorded state without generation. A new ID
+beyond the allowance gets 429; active/interrupted/conflicting jobs get 409. A source
+preflight failure stops before generation. Logs needed for troubleshooting remain
+on the host. A blocked or successful PR still requires separate diff, CI and
+security review plus explicit human approval before merge.

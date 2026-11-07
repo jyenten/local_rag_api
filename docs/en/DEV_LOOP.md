@@ -868,9 +868,10 @@ calls or publication credentials; live Docker tests remain explicitly opt-in.
 The host-side publisher can be called from the CLI after a real LangGraph run.
 The original development API on port 8765 still accepts its existing fixed fixture
 tasks. A separate loopback API on 8766 lets n8n select an explicitly registered
-successful BM25 run, recheck it and obtain its PR URL. Real BM25 generation remains
-CLI-only. See [n8n publication setup](DEV_LOOP_N8N_PUBLICATION.md) for the host service,
-connection probe and manual workflow. HTTP payloads cannot carry arbitrary shell
+successful BM25 run, recheck it and obtain its PR URL. A separate explicit host
+registration can enable a bounded new real BM25 run through LangGraph and Codex.
+See [n8n setup](DEV_LOOP_N8N_PUBLICATION.md) for the host service, connection probe,
+publication workflow and optional real-task workflow. HTTP payloads cannot carry arbitrary shell
 commands, repository paths, source files or GitHub credentials.
 
 To receive controller changes, fetch their reviewed branch through Git and update

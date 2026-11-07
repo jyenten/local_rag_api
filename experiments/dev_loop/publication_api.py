@@ -32,6 +32,12 @@ class PublicationRequest(BaseModel):
     run_id: UUID
 
 
+class JobRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    task_id: Literal['bm25-tokenize-once']
+    request_id: UUID
+
+
 def public_receipt(record, run_id):
     """Only review metadata leaves the host: no filesystem paths or raw evidence."""
     if (not isinstance(record, dict) or record.get('request_id') != run_id or record.get('task_id') != TASK_ID
@@ -50,7 +56,7 @@ def public_receipt(record, run_id):
     return {key: record[key] for key in keys}
 
 
-def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None) -> FastAPI:
+def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None, jobs=None) -> FastAPI:
     if not isinstance(token, str) or len(token) < 24:
         raise ValueError('DEV_LOOP_TOKEN must contain at least 24 characters')
     runs_root = Path(runs_root).absolute()
@@ -95,8 +101,40 @@ def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None) -> 
 
     @app.get('/tasks')
     def tasks():
-        return {'tasks': [{'task_id': TASK_ID, 'allowed_run_ids': sorted(registered),
-                           'operations': ['preview', 'publish'], 'merge_allowed': False}]}
+        result = {'tasks': [{'task_id': TASK_ID, 'allowed_run_ids': sorted(registered),
+                             'operations': ['preview', 'publish'], 'merge_allowed': False}]}
+        if jobs is not None:
+            result['real_job'] = jobs.capabilities()
+        return result
+
+    if jobs is not None:
+        from .real_jobs import NewJobLimit
+        from .workflow import JobConflict
+
+        @app.post('/jobs')
+        def start_job(body: JobRequest):
+            if not lock.acquire(blocking=False):
+                raise HTTPException(409, 'A task or publication is active; inspect its status')
+            try:
+                return jobs.execute(str(body.request_id))
+            except NewJobLimit as exc:
+                raise HTTPException(429, 'New-job allowance consumed; host action is required') from exc
+            except JobConflict as exc:
+                raise HTTPException(409, 'Job conflicts with saved or active state; inspect on the host') from exc
+            except (InfrastructureError, OSError, ValueError, KeyError, TypeError) as exc:
+                LOGGER.warning('Real task stopped (%s)', type(exc).__name__)
+                raise HTTPException(503, 'Real task stopped; inspect saved job state on the host') from exc
+            finally:
+                lock.release()
+
+        @app.get('/jobs/{request_id}')
+        def job_status(request_id: UUID):
+            try:
+                return jobs.status(str(request_id))
+            except FileNotFoundError as exc:
+                raise HTTPException(404, 'Unknown real-task job') from exc
+            except (InfrastructureError, OSError, ValueError, KeyError, TypeError) as exc:
+                raise HTTPException(409, 'Job state requires host inspection') from exc
 
     def run_directory(body):
         run_id = str(body.run_id)
@@ -147,11 +185,24 @@ def main(argv=None):
     parser.add_argument('--allow-run', type=UUID, action='append', required=True,
                         help='Exact verified run UUID; repeat for at most 20 registered runs')
     parser.add_argument('--port', type=int, default=PORT)
+    parser.add_argument('--source-repo', type=Path,
+                        help='Explicitly enable real BM25 jobs from this reviewed original worktree')
+    parser.add_argument('--jobs-root', type=Path, help='Separate host-owned real-job state and artifacts')
+    parser.add_argument('--max-new-jobs', type=int, default=1,
+                        help='New real jobs allowed per service session (1-20, default 1)')
     args = parser.parse_args(argv)
     if not 1024 <= args.port <= 65535:
         parser.error('--port must be between 1024 and 65535')
+    if args.source_repo is None and (args.jobs_root is not None or args.max_new_jobs != 1):
+        parser.error('--jobs-root/--max-new-jobs require --source-repo')
     try:
-        app = create_app(args.runs_root, os.environ.get('DEV_LOOP_TOKEN', ''), args.allow_run)
+        jobs = None
+        if args.source_repo is not None:
+            from .real_jobs import RealJobs
+
+            jobs = RealJobs(args.source_repo, args.jobs_root or args.runs_root.parent / 'n8n-real-jobs',
+                            args.max_new_jobs)
+        app = create_app(args.runs_root, os.environ.get('DEV_LOOP_TOKEN', ''), args.allow_run, jobs=jobs)
         for run_id in args.allow_run:
             load_bundle(args.runs_root / str(run_id))
     except (InfrastructureError, ValueError, OSError) as exc:

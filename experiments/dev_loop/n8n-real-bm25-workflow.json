@@ -1,0 +1,63 @@
+{
+  "name": "Local RAG lab - generate verify and publish real BM25",
+  "active": false,
+  "nodes": [
+    {
+      "id": "manual-trigger",
+      "name": "Run one real BM25 task",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "publish-run",
+      "name": "LangGraph Codex checks and PR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        0
+      ],
+      "retryOnFail": false,
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8766/jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({task_id: 'bm25-tokenize-once', request_id: '00000000-0000-4000-8000-' + String($execution.id).padStart(12, '0')}) }}",
+        "options": {
+          "timeout": 900000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run one real BM25 task": {
+      "main": [
+        [
+          {
+            "node": "LangGraph Codex checks and PR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}
