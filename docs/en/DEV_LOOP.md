@@ -24,6 +24,8 @@
 
 - [Real BM25: direct before/after comparison](#real-bm25-direct-beforeafter-comparison)
 
+- [Publish a verified real task through Git](#publish-a-verified-real-task-through-git)
+
 ## Scope
 
 The lab lives in `experiments/dev_loop/` on `experiment/autonomous-dev`.
@@ -760,3 +762,119 @@ Controller verification without model calls uses the existing
 model call) can be enabled with `DEV_LOOP_REAL_BM25_DOCKER_TESTS=1` and run through
 dev-loop's `tests/test_real_bm25.py`. Controller tests alone do not establish live
 Docker/Codex success.
+
+## Publish a verified real task through Git
+
+The host-side publisher supports only `bm25-tokenize-once` in
+`jyenten/local_rag_api` (repository ID `1236923375`). It creates a branch and draft
+PR against `main` through GitHub's Git Data API. It does not stage or commit the
+local worktree, run Git hooks, apply a patch, update an existing branch, or merge.
+Fixtures such as `build-search-package` have no application destination and cannot
+be published through this command.
+
+GitHub CLI (`gh`) must be installed and authenticated on the **host**:
+
+```powershell
+gh --version
+gh auth login --hostname github.com
+gh auth status --hostname github.com
+```
+
+Use the browser login offered by `gh`. ChatGPT/Codex authentication and
+`DEV_LOOP_TOKEN` do not authenticate GitHub. The logged-in account needs repository
+Contents and Pull requests write access; no workflow/secrets administration is
+needed. Host `gh` may use its credential store or an explicitly configured
+`GH_TOKEN`/`GITHUB_TOKEN`; do not put tokens in commands, reports or n8n JSON.
+The publisher alone gets this authentication. Neither the model worker nor the
+offline checker receives it.
+
+### Publish an existing run without another model call
+
+From the updated experimental worktree root, point to the exact successful run.
+Use an explicit UUID rather than selecting whichever directory happens to be newest:
+
+```powershell
+cd D:\AI_roadmap_autonomous
+$labPython = '.\experiments\dev_loop\.venv\Scripts\python.exe'
+$runDir = '.\experiments\dev_loop\.runs\real-bm25\a5739357-6da4-4118-be18-5c038306e0e9'
+& $labPython -m experiments.dev_loop.publish --run-dir $runDir
+& $labPython -m experiments.dev_loop.publish --run-dir $runDir --publish
+```
+
+The first invocation is an **offline preview**, without GitHub access or Docker
+execution. `--publish` is the explicit publication action. It:
+
+1. Validates the fixed task, UUID, successful result, source/candidate SHA-256 and
+   constructor-only AST scope. Paths in saved JSON are not used to locate artifacts.
+2. Checks the fixed GitHub repository ID, resolves `main` to a full commit, and
+   verifies the original module, tokenizer/config and 68-test source against the
+   reviewed hashes at both that base and the recorded source commit. Upstream
+   source/test changes stop publication and need a new reviewed task baseline.
+3. Reruns baseline and acceptance in the **original immutable checker image SHA**.
+   Docker must be running and that image must still exist locally. The same 68
+   tests must pass before/after, with identical six-query results and tokenizer
+   calls reduced from 2000 to 1000. Candidate Python is not run on the host.
+4. Reuses an identical open one-file BM25 PR, including an older manually created
+   PR. A competing one-file BM25 PR with a different result stops publication.
+5. Otherwise creates one commit changing only `rag_api_project/app/retrievers/bm25.py`
+   on `agent/bm25-tokenize-once-<UUID>` and opens a **draft** PR. The new commit's
+   remote diff and contents are checked before creating the branch; `main` moving
+   during this step stops publication. Existing branch refs are never overwritten.
+
+The original `result.json` is preserved as generation evidence. A separate
+`publication.json` records the PR URL, actual head/base commits, immutable checker
+image, fresh comparison evidence and whether an existing PR was reused. It does
+not claim CI success: `ci_status` is `not_checked`, and merge is disabled.
+Reports and local paths are not uploaded; the PR contains the public source diff,
+fixed summary and selected run/hash provenance, without raw model/test logs.
+
+For the already accepted BM25 result, this should return the existing PR #10 if
+its base, one-file diff and candidate contents still match. No new Codex call is
+made. A different valid candidate is not automatically treated as equivalent.
+
+### Interrupted publication and new runs
+
+Rerun the same `--run-dir ... --publish` after an interrupted request. The publisher
+checks GitHub again rather than trusting a cached local receipt. If a branch was
+created but PR creation failed, the exact branch can be reused after checking its
+one-commit diff. A mismatched branch is left intact. A PR response lost in transit
+is recovered by finding the matching open PR on retry. A closed/merged PR or a
+changed upstream baseline requires inspection; do not force-reset refs.
+
+`publication.lock` prevents concurrent publication of the same local run. If the
+controller crashes and leaves it behind, first confirm that no publisher remains
+active before manually removing that one lock file. GitHub writes are not a single
+transaction: a failure can leave an unattached Git object or a branch without a PR.
+No automatic cleanup deletes branches or PRs.
+
+A new real run can opt into the same handoff after success:
+
+```powershell
+& $labPython -m experiments.dev_loop.real_bm25 --publish
+```
+
+This still requires the reviewed original source in the input repository; the
+already optimized worktree is intentionally rejected. On publication failure the
+successful run is retained; retry the separate publisher, without another paid or
+account-limited model invocation.
+
+### Review before merge and subsequent n8n integration
+
+Before merging, review the diff, project and controller CI, and dependency/security
+findings. A draft PR and passing checker do not approve a merge or waive findings.
+The `Development loop controller` workflow runs unit/contract tests without model
+calls or publication credentials; live Docker tests remain explicitly opt-in.
+
+Publication is currently a host-side **CLI operation**, optionally called after the
+real LangGraph run. The n8n HTTP API still accepts only its existing fixed fixture
+tasks. It does not yet execute the real BM25 task or publish PRs. A later bounded
+integration can let n8n select a registered task and display its PR URL while
+LangGraph controls implementation/repair and the host controller handles GitHub.
+Do not add arbitrary shell commands, repository paths, source files or GitHub
+credentials to HTTP task payloads.
+
+To receive controller changes, fetch their reviewed branch through Git and update
+the intended clean worktree. A separate review worktree can be created from the
+remote branch without modifying existing work. No patch download/application is
+required. Merging the controller's implementation PR into the experimental branch
+and merging an application change into `main` remain separate decisions.

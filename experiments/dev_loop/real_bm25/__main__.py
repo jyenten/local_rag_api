@@ -259,6 +259,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='One real BM25 improvement with paired offline before/after comparison')
     parser.add_argument('--repo', type=Path, default=HERE.parents[2])
     parser.add_argument('--output-root', type=Path, default=HERE.parent / '.runs/real-bm25')
+    parser.add_argument('--publish', action='store_true',
+                        help='After success, independently recheck and publish a branch/draft PR through gh')
     args = parser.parse_args(argv)
     try:
         report, directory = run(args.repo.resolve(), args.output_root.resolve())
@@ -266,6 +268,15 @@ def main(argv=None):
         parser.exit(1, str(exc) + '\n')
     print(json.dumps(report, indent=2))
     print('Report: ' + str(directory / 'report.html'))
+    if args.publish and report['status'] == 'review_ready':
+        from ..publish import publish
+
+        try:
+            publication = publish(directory)
+        except (InfrastructureError, OSError, ValueError, KeyError, TypeError) as exc:
+            parser.exit(1, 'Run saved; publication failed. Retry experiments.dev_loop.publish '
+                           '--run-dir with the directory above. ' + str(exc) + '\n')
+        print(json.dumps({'publication': publication}, indent=2))
     return 0 if report['status'] == 'review_ready' else 1
 
 
