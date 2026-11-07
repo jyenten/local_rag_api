@@ -833,11 +833,12 @@ závislostí. Draft PR a úspěšný checker neopravňují k mergi ani neuděluj
 nálezů. Workflow `Development loop controller` spouští unit/contract testy bez volání
 modelů a bez přihlášení k publikování; živé Docker testy zůstávají výslovně volitelné.
 
-Publikování je nyní hostitelská **CLI operace**, volitelně volaná po skutečném běhu
-LangGraphu. n8n HTTP API stále přijímá pouze dosavadní pevné výukové úlohy. Skutečný
-BM25 úkol ani publikování PR zatím nespouští. Následná ohraničená integrace může
-nechat n8n vybrat registrovaný úkol a zobrazit odkaz na PR; LangGraph řídí implementaci
-a opravy, hostitelský controller obsluhuje GitHub. HTTP zadání nesmí obsahovat
+Hostitelský publisher lze zavolat přes CLI po skutečném běhu LangGraphu. Původní
+vývojové API na portu 8765 dál přijímá dosavadní pevné výukové úlohy. Samostatné
+loopback API na 8766 umožňuje n8n vybrat výslovně registrovaný úspěšný BM25 běh,
+znovu jej ověřit a získat odkaz na PR. Generování skutečné BM25 změny zůstává
+CLI-only. [Návod pro publikování z n8n](DEV_LOOP_N8N_PUBLICATION.md) popisuje
+hostitelskou službu, test spojení a ruční workflow. HTTP zadání nesmí obsahovat
 libovolné shell příkazy, cesty repozitářů, zdrojové soubory ani GitHub přihlášení.
 
 Změny controlleru přebírej přes Git fetch z jeho zkontrolované větve do správného

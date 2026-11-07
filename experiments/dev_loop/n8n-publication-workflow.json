@@ -1,0 +1,103 @@
+{
+  "name": "Local RAG lab - publish verified BM25 run",
+  "active": false,
+  "nodes": [
+    {
+      "id": "manual-trigger",
+      "name": "Publish verified run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "choose-run",
+      "name": "Choose registered run",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fixed-task",
+              "name": "task_id",
+              "value": "bm25-tokenize-once",
+              "type": "string"
+            },
+            {
+              "id": "registered-run",
+              "name": "run_id",
+              "value": "a5739357-6da4-4118-be18-5c038306e0e9",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "publish-run",
+      "name": "Recheck and get draft PR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ],
+      "retryOnFail": false,
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8766/publications",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({task_id: $json.task_id, run_id: $json.run_id}) }}",
+        "options": {
+          "timeout": 900000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Publish verified run": {
+      "main": [
+        [
+          {
+            "node": "Choose registered run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose registered run": {
+      "main": [
+        [
+          {
+            "node": "Recheck and get draft PR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}
