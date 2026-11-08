@@ -1,0 +1,31 @@
+name: Development loop controller
+
+on:
+  push:
+    paths:
+      - 'experiments/**'
+      - '.github/workflows/dev-loop.yml'
+  pull_request:
+    paths:
+      - 'experiments/**'
+      - '.github/workflows/dev-loop.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  controller-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Provenance tests compare with the reviewed historical BM25 revision.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Install controller and report dependencies
+        run: python -m pip install -r experiments/dev_loop/requirements-report.txt
+      - name: Test controller without model calls or publication credentials
+        run: python -m pytest experiments/dev_loop/tests -q -p no:cacheprovider

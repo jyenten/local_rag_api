@@ -24,6 +24,8 @@
 
 - [Skutečný BM25: přímé srovnání před a po](#skutečný-bm25-přímé-srovnání-před-a-po)
 
+- [Publikování ověřeného skutečného úkolu přes Git](#publikování-ověřeného-skutečného-úkolu-přes-git)
+
 ## Rozsah
 
 Laboratoř žije v `experiments/dev_loop/` na větvi `experiment/autonomous-dev`.
@@ -731,3 +733,115 @@ Ověření řadiče bez modelu používá dosavadní příkaz `pytest experiment
 Volitelný živý test checkeru (bez modelového volání) lze povolit pomocí
 `DEV_LOOP_REAL_BM25_DOCKER_TESTS=1` a spustit `tests/test_real_bm25.py` pod dev-loop.
 Lokální kontroly řadiče samy neprokazují živý Docker/Codex běh.
+
+## Publikování ověřeného skutečného úkolu přes Git
+
+Hostitelský publisher podporuje pouze `bm25-tokenize-once` v
+`jyenten/local_rag_api` (ID repozitáře `1236923375`). Přes Git Data API vytvoří větev
+a draft PR do `main`. Nemění staging ani commity lokálního worktree, nespouští Git
+hooky, neaplikuje patch, nepřepisuje existující větev a neprovádí merge.
+Výukové úlohy jako `build-search-package` nemají cílové místo v aplikaci a tímto
+příkazem se publikovat nedají.
+
+GitHub CLI (`gh`) musí být nainstalované a přihlášené na **hostiteli**:
+
+```powershell
+gh --version
+gh auth login --hostname github.com
+gh auth status --hostname github.com
+```
+
+Použij přihlášení přes prohlížeč nabídnuté `gh`. Přihlášení ChatGPT/Codex ani
+`DEV_LOOP_TOKEN` nejsou přihlášením ke GitHubu. Účet potřebuje zápis Contents a Pull
+requests do repozitáře; nepotřebuje správu workflow ani secrets. Hostitelské `gh`
+může použít vlastní úložiště přihlašovacích údajů nebo výslovně nastavený
+`GH_TOKEN`/`GITHUB_TOKEN`; tokeny nevkládej do příkazů, reportů ani n8n JSON.
+Přihlášení dostává pouze publisher, nikoli modelový worker nebo offline checker.
+
+### Existující běh bez dalšího volání modelu
+
+Z kořene aktualizovaného experimentálního worktree vyber přesný úspěšný běh.
+Použij konkrétní UUID, nikoli automatický výběr nejnovějšího adresáře:
+
+```powershell
+cd D:\AI_roadmap_autonomous
+$labPython = '.\experiments\dev_loop\.venv\Scripts\python.exe'
+$runDir = '.\experiments\dev_loop\.runs\real-bm25\a5739357-6da4-4118-be18-5c038306e0e9'
+& $labPython -m experiments.dev_loop.publish --run-dir $runDir
+& $labPython -m experiments.dev_loop.publish --run-dir $runDir --publish
+```
+
+První příkaz je **offline náhled** bez GitHubu a bez spuštění Dockeru. Přepínač
+`--publish` výslovně spouští publikování. Postup:
+
+1. Ověří pevný úkol, UUID, úspěšný výsledek, SHA-256 původního souboru i návrhu a AST
+   omezení změny na tělo konstruktoru. Cesty z uloženého JSON neurčují umístění souborů.
+2. Ověří ID pevného GitHub repozitáře, určí celý commit `main` a zkontroluje původní
+   modul, tokenizer/config a zdroj 68 testů proti schváleným hashům jak na tomto
+   základu, tak v zaznamenaném zdrojovém commitu. Změna zdroje či testů v upstreamu
+   publikování zastaví a vyžaduje nově zkontrolovaný základ úkolu.
+3. Znovu spustí baseline i acceptance v **původním neměnném SHA obrazu checkeru**.
+   Docker musí běžet a obraz musí být lokálně dostupný. Před i po musí projít stejných
+   68 testů, výsledky šesti dotazů musí být shodné a tokenizace klesnout z 2000 na 1000.
+   Python návrhu se na hostiteli nespouští.
+4. Použije existující shodný otevřený jednosouborový BM25 PR, včetně dříve ručně
+   vytvořeného PR. Konkurenční jednosouborový BM25 PR s jiným výsledkem postup zastaví.
+5. Jinak vytvoří jeden commit měnící pouze `rag_api_project/app/retrievers/bm25.py`
+   na větvi `agent/bm25-tokenize-once-<UUID>` a založí **draft** PR. Vzdálený diff a
+   obsah commitu se ověří před vytvořením větve; posun `main` v tomto kroku postup
+   zastaví. Existující reference větví se nikdy nepřepisují.
+
+Původní `result.json` zůstává důkazem generačního běhu. Samostatný `publication.json`
+obsahuje odkaz na PR, skutečný head/base commit, neměnný obraz checkeru, čerstvé
+porovnání a informaci o použití existujícího PR. Nepotvrzuje úspěch CI:
+`ci_status` je `not_checked` a merge je zakázaný. Reporty ani lokální cesty se
+nenahrávají; PR obsahuje diff veřejného zdroje, pevné shrnutí a vybraný původ běhu
+pomocí UUID/hashů, bez surových modelových či testových logů.
+
+U již přijatého BM25 výsledku se má vrátit existující PR #10, pokud stále souhlasí
+základ, jednosouborový diff i obsah návrhu. Další volání Codexu se neprovádí.
+Jiný platný návrh se automaticky nepovažuje za ekvivalentní.
+
+### Přerušené publikování a nové běhy
+
+Po přerušení spusť znovu stejné `--run-dir ... --publish`. Publisher znovu ověřuje
+GitHub, nespoléhá na lokální uloženou účtenku. Pokud vznikla větev a selhalo založení
+PR, lze shodnou větev použít po kontrole jejího jednosouborového commitu. Odlišná
+větev zůstane nedotčená. Ztracenou odpověď při založení PR řeší nalezení shodného
+otevřeného PR při opakování. Zavřený/sloučený PR nebo změněný upstream základ
+vyžaduje kontrolu; reference neresetuj silou.
+
+`publication.lock` brání souběžnému publikování stejného lokálního běhu. Pokud po
+pádu zůstane, před ručním odstraněním tohoto jediného lock souboru nejprve ověř,
+že žádný publisher neběží. GitHub zápisy nejsou jedna transakce: po chybě může
+zůstat nepřipojený Git objekt nebo větev bez PR. Větve ani PR se automaticky nemažou.
+
+Nový skutečný běh může stejný postup spustit po úspěšném ověření:
+
+```powershell
+& $labPython -m experiments.dev_loop.real_bm25 --publish
+```
+
+Vstupní repozitář stále musí obsahovat zkontrolovaný původní zdroj; již optimalizované
+worktree se záměrně odmítne. Při selhání publikování zůstane úspěšný běh uložený;
+opakuj samostatný publisher bez dalšího placeného nebo účtem omezeného volání modelu.
+
+### Kontrola před mergem a následné napojení n8n
+
+Před mergem zkontroluj diff, projektové i controller CI a bezpečnostní nálezy
+závislostí. Draft PR a úspěšný checker neopravňují k mergi ani neudělují výjimku z
+nálezů. Workflow `Development loop controller` spouští unit/contract testy bez volání
+modelů a bez přihlášení k publikování; živé Docker testy zůstávají výslovně volitelné.
+
+Publikování je nyní hostitelská **CLI operace**, volitelně volaná po skutečném běhu
+LangGraphu. n8n HTTP API stále přijímá pouze dosavadní pevné výukové úlohy. Skutečný
+BM25 úkol ani publikování PR zatím nespouští. Následná ohraničená integrace může
+nechat n8n vybrat registrovaný úkol a zobrazit odkaz na PR; LangGraph řídí implementaci
+a opravy, hostitelský controller obsluhuje GitHub. HTTP zadání nesmí obsahovat
+libovolné shell příkazy, cesty repozitářů, zdrojové soubory ani GitHub přihlášení.
+
+Změny controlleru přebírej přes Git fetch z jeho zkontrolované větve do správného
+čistého worktree. Pro kontrolu lze vytvořit samostatné worktree z remote větve bez
+zásahu do stávající práce. Stahování/aplikace patchů nejsou potřeba. Sloučení
+implementačního PR controlleru do experimentální větve a sloučení změny aplikace do
+`main` zůstávají oddělená rozhodnutí.
