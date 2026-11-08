@@ -879,3 +879,65 @@ the intended clean worktree. A separate review worktree can be created from the
 remote branch without modifying existing work. No patch download/application is
 required. Merging the controller's implementation PR into the experimental branch
 and merging an application change into `main` remain separate decisions.
+
+## Agreements and stable service startup
+
+Approved operating agreements are recorded in [DEV_LOOP_POLICY.md](DEV_LOOP_POLICY.md).
+Root `AGENTS.md` and `experiments/dev_loop/AGENTS.md` point to them; policy changes
+require human review through Eval Governance. Git instructions do not replace
+runtime allowlists, Docker isolation or pre-merge review.
+
+Keep one installation for normal use, such as the existing
+`D:\AI_roadmap_n8n_jobs`. Review new development branches separately; routine jobs
+do not require another worktree, n8n rebuild or workflow change. Updating controller
+code is a separate reviewed step with a restart. Startup itself does not fetch,
+checkout, install packages, rebuild containers, execute a task or merge.
+
+After receiving this version into the clean stable installation once, save settings:
+
+```powershell
+cd D:\AI_roadmap_n8n_jobs
+$labPython = 'D:\AI_roadmap_autonomous\experiments\dev_loop\.venv\Scripts\python.exe'
+& $labPython -m experiments.dev_loop.service init --runs-root D:\AI_roadmap_autonomous\experiments\dev_loop\.runs\real-bm25 --allow-run a5739357-6da4-4118-be18-5c038306e0e9 --source-repo D:\AI_roadmap_chroma_security --jobs-root D:\AI_roadmap_autonomous\experiments\dev_loop\.runs\n8n-real-jobs
+```
+
+This checks the registered saved run and original source. Ignored local
+`experiments/dev_loop/.runs/service.json` stores absolute paths, the active Python,
+registered UUIDs, port and limit. The default one new job per service process is
+unchanged. Profiles reject token fields, host addresses, commands and arbitrary
+arguments. Existing profiles need explicit `--replace`, which only replaces a valid
+service profile, never an unrelated file. Budget changes are not implicitly approved.
+
+Subsequent startup from the same directory:
+
+```powershell
+.\experiments\dev_loop\Start-DevLoop.ps1
+```
+
+The listener remains `127.0.0.1:8766`. The launcher uses saved Python/settings and
+changes working directory only within its process; n8n, auth volumes and stored
+job outcomes are preserved. An existing `DEV_LOOP_TOKEN` environment value is used;
+otherwise Python requests it interactively without echo. Enter the same saved token
+as the n8n Header Auth credential. No token is written to the profile. Headless
+startup requires the environment value. This does not install a Windows system
+service or configure boot-time startup.
+
+If local execution policy blocks `.ps1`, do not change it to Bypass. The equivalent
+Python command is fully supported:
+
+```powershell
+& 'D:\AI_roadmap_autonomous\experiments\dev_loop\.venv\Scripts\python.exe' -m experiments.dev_loop.service start
+```
+
+Offline profile validation, without listening or executing a task:
+
+```powershell
+& 'D:\AI_roadmap_autonomous\experiments\dev_loop\.venv\Scripts\python.exe' -m experiments.dev_loop.service check
+```
+
+This validates settings/registered files. `runtime_readiness: not_checked` means it
+does not certify the running Docker engine, GitHub/Codex auth or current remote
+baseline; the actual job/publisher verifies those. See the [n8n guide](DEV_LOOP_N8N_PUBLICATION.md)
+for import and the one-time live check. Generation still requires explicitly
+registered original source. BM25 is the currently supported real task, not arbitrary
+free-form work assignment.

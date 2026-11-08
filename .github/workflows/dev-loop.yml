@@ -35,3 +35,18 @@ jobs:
         run: python -m pip install -r experiments/dev_loop/requirements-report.txt
       - name: Test controller without model calls or publication credentials
         run: python -m pytest experiments/dev_loop/tests -q -p no:cacheprovider
+
+  windows-service:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Install controller dependencies
+        run: python -m pip install -r experiments/dev_loop/requirements.txt
+      - name: Verify stable profile and PowerShell launcher
+        run: python -m pytest experiments/dev_loop/tests/test_service.py -q -p no:cacheprovider

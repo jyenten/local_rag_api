@@ -847,3 +847,64 @@ Změny controlleru přebírej přes Git fetch z jeho zkontrolované větve do sp
 zásahu do stávající práce. Stahování/aplikace patchů nejsou potřeba. Sloučení
 implementačního PR controlleru do experimentální větve a sloučení změny aplikace do
 `main` zůstávají oddělená rozhodnutí.
+
+## Pravidla a stálé spuštění služby
+
+Schválené dohody této práce jsou v [DEV_LOOP_POLICY.md](DEV_LOOP_POLICY.md).
+Kořenový `AGENTS.md` a `experiments/dev_loop/AGENTS.md` na ně odkazují; změny
+pravidel vyžadují lidskou kontrolu přes Eval Governance. Git pravidla nenahrazují
+runtime allowlisty, Docker izolaci ani kontrolu před mergem.
+
+Pro běžný provoz ponech jednu instalaci, například již vytvořené
+`D:\AI_roadmap_n8n_jobs`. Nové vývojové větve kontroluj odděleně; kvůli každému
+spuštění úkolu není potřeba další worktree, rebuild n8n ani změna workflow.
+Aktualizace kódu služby je samostatný zkontrolovaný krok s restartem; start sám
+nedělá fetch, checkout, instalaci balíčků, rebuild kontejnerů, úkol ani merge.
+
+Po jednorázovém převzetí této verze do čisté stálé instalace ulož nastavení:
+
+```powershell
+cd D:\AI_roadmap_n8n_jobs
+$labPython = 'D:\AI_roadmap_autonomous\experiments\dev_loop\.venv\Scripts\python.exe'
+& $labPython -m experiments.dev_loop.service init --runs-root D:\AI_roadmap_autonomous\experiments\dev_loop\.runs\real-bm25 --allow-run a5739357-6da4-4118-be18-5c038306e0e9 --source-repo D:\AI_roadmap_chroma_security --jobs-root D:\AI_roadmap_autonomous\experiments\dev_loop\.runs\n8n-real-jobs
+```
+
+Příkaz ověří existující registrovaný běh a původní zdroj. Do ignorovaného
+`experiments/dev_loop/.runs/service.json` uloží absolutní cesty, použitý Python,
+povolená UUID, port a limit. Výchozí jeden nový job na proces služby se nemění.
+Profil nepřijímá pole tokenů, host adresu, příkazy nebo libovolné argumenty.
+Existující profil se nepřepíše bez `--replace`; tento přepínač smí nahradit pouze
+platný profil služby, nikoli cizí soubor. Změny limitů nejsou automaticky schválené.
+
+Následné spuštění z téhož adresáře:
+
+```powershell
+.\experiments\dev_loop\Start-DevLoop.ps1
+```
+
+Služba zůstane na `127.0.0.1:8766`. Spouštěč použije uložený Python a stejný profil,
+přepne pracovní adresář pouze uvnitř svého procesu a ponechá n8n, auth volumes a
+existující job výsledky. Je-li `DEV_LOOP_TOKEN` v prostředí, použije se; jinak jej
+Python interaktivně skrytě vyžádá. Zadej stejný uložený token jako v n8n Header Auth.
+Token se nezapisuje do profilu. Bez interaktivního terminálu musí být v prostředí.
+Nejde o instalaci systémové Windows služby ani automatický start po zapnutí PC.
+
+Pokud místní execution policy nepovoluje `.ps1`, neměň ji na Bypass. Stejné spuštění
+má plnohodnotný Python příkaz:
+
+```powershell
+& 'D:\AI_roadmap_autonomous\experiments\dev_loop\.venv\Scripts\python.exe' -m experiments.dev_loop.service start
+```
+
+Offline kontrola profilu bez spuštění listeneru nebo úkolu:
+
+```powershell
+& 'D:\AI_roadmap_autonomous\experiments\dev_loop\.venv\Scripts\python.exe' -m experiments.dev_loop.service check
+```
+
+Kontrola ověří profil a registrované soubory; `runtime_readiness: not_checked`
+znamená, že tím není ověřen běžící Docker, přihlášení GitHub/Codex ani aktuální
+vzdálený základ. Ty dál ověřuje skutečný úkol/publisher. n8n import a jednorázové
+živé spuštění [popisuje návod](DEV_LOOP_N8N_PUBLICATION.md); generování stále
+vyžaduje výslovně registrovaný původní zdroj. Aktuálně podporovaný reálný úkol je
+BM25, nikoli univerzální volné zadávání práce.
