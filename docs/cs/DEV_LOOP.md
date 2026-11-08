@@ -836,9 +836,10 @@ modelů a bez přihlášení k publikování; živé Docker testy zůstávají v
 Hostitelský publisher lze zavolat přes CLI po skutečném běhu LangGraphu. Původní
 vývojové API na portu 8765 dál přijímá dosavadní pevné výukové úlohy. Samostatné
 loopback API na 8766 umožňuje n8n vybrat výslovně registrovaný úspěšný BM25 běh,
-znovu jej ověřit a získat odkaz na PR. Generování skutečné BM25 změny zůstává
-CLI-only. [Návod pro publikování z n8n](DEV_LOOP_N8N_PUBLICATION.md) popisuje
-hostitelskou službu, test spojení a ruční workflow. HTTP zadání nesmí obsahovat
+znovu jej ověřit a získat odkaz na PR. Samostatná výslovná registrace na hostiteli
+může povolit ohraničený nový skutečný BM25 běh přes LangGraph a Codex.
+[Návod pro n8n](DEV_LOOP_N8N_PUBLICATION.md) popisuje hostitelskou službu, test spojení,
+publikační workflow a volitelné workflow skutečného úkolu. HTTP zadání nesmí obsahovat
 libovolné shell příkazy, cesty repozitářů, zdrojové soubory ani GitHub přihlášení.
 
 Změny controlleru přebírej přes Git fetch z jeho zkontrolované větve do správného

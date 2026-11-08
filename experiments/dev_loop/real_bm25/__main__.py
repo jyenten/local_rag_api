@@ -211,9 +211,10 @@ def render(report, directory):
     (directory / 'report.html').write_text(content, encoding='utf-8')
 
 
-def run(repo, output_root):
+def run(repo, output_root, *, request_id=None):
     original, revision = read_source(repo)
-    directory = output_root / str(uuid.uuid4())
+    # A caller may pin the output UUID; an existing directory is never rerun here.
+    directory = output_root / str(uuid.UUID(str(request_id)) if request_id is not None else uuid.uuid4())
     directory.mkdir(parents=True, exist_ok=False)
     workspace = directory / 'workspace'
     workspace.mkdir()
