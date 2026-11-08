@@ -4,10 +4,16 @@ on:
   push:
     paths:
       - 'experiments/**'
+      - 'AGENTS.md'
+      - 'docs/cs/DEV_LOOP_POLICY.md'
+      - 'docs/en/DEV_LOOP_POLICY.md'
       - '.github/workflows/dev-loop.yml'
   pull_request:
     paths:
       - 'experiments/**'
+      - 'AGENTS.md'
+      - 'docs/cs/DEV_LOOP_POLICY.md'
+      - 'docs/en/DEV_LOOP_POLICY.md'
       - '.github/workflows/dev-loop.yml'
 
 permissions:

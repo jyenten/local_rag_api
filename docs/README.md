@@ -2,7 +2,7 @@
 
 # Dokumentace Local RAG API / Local RAG API documentation
 
-Veškerá verzovaná Markdown dokumentace je v této složce. Jedinou výjimkou je [hlavní README](../README.md) v kořeni repozitáře. / All versioned Markdown documentation lives here; the sole exception is the [root README](../README.md).
+Veškerá verzovaná Markdown dokumentace je v této složce. Výjimkou jsou [hlavní README](../README.md) a vstupní `AGENTS.md` v kořeni a příslušných modulech; ty odkazují na zde uložená pravidla. / Exceptions are the [root README](../README.md) and root/module `AGENTS.md` entry points, which link to the rules stored here.
 
 Příručky mají samostatný obsah kapitol a závěrečný odkaz nahoru. / Guides have chapter contents and a final back-to-top link.
 
@@ -31,11 +31,12 @@ Příručky mají samostatný obsah kapitol a závěrečný odkaz nahoru. / Guid
 
 ## Pravidla agentů / Agent rules
 
-Před změnou souborů načti globální pravidla a pro práci na RAG také projektová pravidla. Umístění dokumentů nemění jejich působnost. Pravidla se načítají výslovně přes odkazy z hlavního README. / Before changing files, read the repository rules and, for RAG work, the project rules. Their storage location does not narrow their scope. Load these files explicitly through the root README links.
+Před změnou souborů načti globální pravidla a pro práci na RAG také projektová pravidla. Umístění dokumentů nemění jejich působnost. Vstupem pro agenty je také [kořenový AGENTS.md](../AGENTS.md). / Before changing files, read the repository rules and, for RAG work, the project rules. Their storage location does not narrow their scope. The [root AGENTS.md](../AGENTS.md) is also an agent entry point.
 
 | Pravidla / Rules | Česky | English |
 | --- | --- | --- |
 | Globální / Repository-wide | [Česky](cs/AGENTS.md#cz) | [English](en/AGENTS.md#en) |
+| Dev-loop dohody / Dev-loop agreements | [Česky](cs/DEV_LOOP_POLICY.md) | [English](en/DEV_LOOP_POLICY.md) |
 | RAG projekt / RAG project | [Česky](cs/PROJECT_AGENTS.md#cz) | [English](en/PROJECT_AGENTS.md#en) |
 
 ## Další dokumenty / Other documents

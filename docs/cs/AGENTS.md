@@ -69,7 +69,7 @@ Používej, když vlastník deleguje ohraničený implementační úkol.
 - Přidej smysluplné regresní testy.
 - Zachovej existující rozhraní a uživatelské změny.
 - Vyhni se nesouvisejícímu refaktoringu a zbytečně složitému návrhu.
-- Bez schválení neprováděj commit, push ani merge.
+- Commit a push prováděj pouze v rozsahu výslovného nebo již zaznamenaného průběžného oprávnění vlastníka. Pro delegovanou laboratoř platí [DEV_LOOP_POLICY.md](DEV_LOOP_POLICY.md); ostatní práce tím oprávnění nezískává. Merge vyžaduje nové výslovné schválení konkrétního PR po kontrole.
 
 
 <a id="cz-review--audit"></a>
@@ -125,7 +125,7 @@ U implementační práce uveď:
 4. Zbývající omezení.
 5. Pojmy, kterým má vlastník rozumět.
 
-Konečnou integraci a commity schvaluje lidský vlastník.
+Konečnou integraci a merge schvaluje lidský vlastník. Samostatné commity/push mohou využít již udělené ohraničené oprávnění popsané výše; toto oprávnění není souhlasem s mergem.
 
 
 <a id="cz-provozní-dokumentace-a-bezpečnost"></a>
