@@ -78,6 +78,8 @@ Chatbot nyní běží lokálně/offline. Vlastník kontrolu závislostí ponech�
 
 Relevance nálezů závisí na zasažených funkcích a konfiguraci provozu. Samotný lokální/offline provoz neprokazuje zneužitelnost ani nerelevanci nálezu. Tato úprava dokumentace žádnou kontrolu nevypíná ani neuděluje výjimku.
 
+Posouzení aktualizované 7. 11. 2026, čtyři unikátní CVE, hranice lokálního profilu a doložený stav běžících kontejnerů jsou v [bezpečnostním posouzení ChromaDB](CHROMA_SECURITY.md). `pip-audit` zůstává zapnutý a známé nálezy se nepotlačují.
+
 
 <a id="cz-2-konfigurace-a-zdroje"></a>
 
@@ -202,7 +204,7 @@ docker compose up --build
 docker compose down
 ```
 
-Compose zpřístupňuje API na http://127.0.0.1:8001/docs a připojuje `chroma_db/` a modelovou cache. Dockerfile kopíruje pouze `app/`, `scripts/` a `.env.example`; nekopíruje `document_search/`, `evaluation/`, `eval/` ani PDF. Ingest, page explorer a evaluaci proto spouštěj nativně. Kontejner potřebuje hotový kompatibilní index a přístup k modelům při prvním použití.
+Compose váže port výslovně na `127.0.0.1:8001:8000`; API je na http://127.0.0.1:8001/docs. Připojuje `chroma_db/` a modelovou cache. Změna YAML sama neupraví již běžící kontejner; před jeho znovuvytvořením ověř původní Compose projekt a cesty mountů podle [bezpečnostního posouzení](CHROMA_SECURITY.md). Dockerfile kopíruje pouze `app/`, `scripts/` a `.env.example`; nekopíruje `document_search/`, `evaluation/`, `eval/` ani PDF. Ingest, page explorer a evaluaci proto spouštěj nativně. Kontejner potřebuje hotový kompatibilní index a přístup k modelům při prvním použití.
 
 Compose nepředává hostitelský `.env` aplikaci: nemá `env_file` ani `environment` a obraz `.env` neobsahuje. Pro vlastní nastavení je nutné explicitní předání `RAG_*` proměnných v lokální Compose konfiguraci, s cestami platnými uvnitř kontejneru. Samotný start nebo `/health` nepotvrzuje funkčnost `/ask`; zkontroluj také `/ready` a `/stats`.
 

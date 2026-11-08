@@ -21,6 +21,7 @@ Příručky mají samostatný obsah kapitol a závěrečný odkaz nahoru. / Guid
 | Přehled repozitáře / Repository overview | [Česky](cs/README.md#cz) | [English](../README.md#en) |
 | Přehled RAG projektu / RAG project overview | [Česky](cs/PROJECT.md#cz) | [English](en/PROJECT.md#en) |
 | Instalace a provoz / Setup and operations | [Česky](cs/OPERATIONS.md#cz) | [English](en/OPERATIONS.md#en) |
+| Bezpečnost ChromaDB / ChromaDB security | [Česky](cs/CHROMA_SECURITY.md) | [English](en/CHROMA_SECURITY.md) |
 | Golden evidence a evaluace / Golden evidence and evaluation | [Česky](cs/EVALUATION.md#cz) | [English](en/EVALUATION.md#en) |
 | Pravidla kurátora / Curator rules | [Česky](cs/EVAL_CURATOR_AGENT.md#cz) | [English](en/EVAL_CURATOR_AGENT.md#en) |
 | Architektura / Architecture | [Česky](cs/ARCHITECTURE.md#cz) | [English](en/ARCHITECTURE.md#en) |

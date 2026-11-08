@@ -74,6 +74,8 @@ The chatbot currently runs locally/offline. The owner keeps dependency auditing 
 
 Applicability depends on the affected functionality and deployment configuration. Local/offline operation alone does not establish whether a finding is exploitable or irrelevant. No check is disabled or waived by this documentation update.
 
+The [ChromaDB security assessment](CHROMA_SECURITY.md), updated on 2026-11-07, records four distinct CVEs, local-profile boundaries, and owner-reported running-container checks. `pip-audit` remains enabled without suppressing known findings.
+
 
 <a id="en-2-prepare-and-ingest-pdf-sources"></a>
 
@@ -163,7 +165,7 @@ docker compose up --build
 docker compose down
 ```
 
-Compose exposes http://127.0.0.1:8001/docs and mounts Chroma/model-cache directories. The image omits `document_search/`, `evaluation/`, `eval/` and PDFs. Run ingestion, page discovery and evaluation natively; the API container needs a compatible existing index and model access on first use.
+Compose explicitly binds `127.0.0.1:8001:8000`; the API is at http://127.0.0.1:8001/docs. It mounts Chroma/model-cache directories. Editing YAML does not change an existing container; identify its original Compose project and mount paths before recreating it, as described in the [security assessment](CHROMA_SECURITY.md). The image omits `document_search/`, `evaluation/`, `eval/` and PDFs. Run ingestion, page discovery and evaluation natively; the API container needs a compatible existing index and model access on first use.
 
 Compose does **not** pass the host `.env` to the application: it defines neither `env_file` nor `environment`, and the image contains only `.env.example`. Custom `RAG_*` values require explicit local Compose configuration with container-valid paths. Startup or `/health` alone does not verify `/ask`; also inspect `/ready` and `/stats`.
 
