@@ -70,7 +70,7 @@ Use when the owner delegates a bounded implementation task.
 - Include meaningful regression tests.
 - Preserve existing interfaces and user changes.
 - Avoid unrelated refactoring and overengineering.
-- Do not commit, push or merge without approval.
+- Commit/push only within explicit or already recorded standing authorization from the owner. Delegated lab work follows [DEV_LOOP_POLICY.md](DEV_LOOP_POLICY.md); other work gains no authorization from it. Merging requires fresh explicit approval for the specific PR after review.
 
 
 <a id="en-review--audit"></a>
@@ -126,7 +126,7 @@ For implementation work, report:
 4. Remaining limitations.
 5. Concepts the owner should understand.
 
-The human owner approves final integration and commits.
+The human owner approves final integration and merge. Individual commits/pushes may use the bounded authorization described above; that authorization is not merge approval.
 
 
 <a id="en-operational-documentation-and-safety"></a>

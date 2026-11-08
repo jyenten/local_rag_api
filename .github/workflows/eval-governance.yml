@@ -12,6 +12,10 @@ on:
       - "rag_api_project/docs/EVAL_CURATOR_AGENT.md"
       - "rag_api_project/docs/en/EVAL_CURATOR_AGENT.md"
       - "rag_api_project/docs/cs/EVAL_CURATOR_AGENT.md"
+      - "AGENTS.md"
+      - "experiments/dev_loop/AGENTS.md"
+      - "docs/cs/DEV_LOOP_POLICY.md"
+      - "docs/en/DEV_LOOP_POLICY.md"
       - "docs/en/AGENTS.md"
       - "docs/cs/AGENTS.md"
       - "docs/en/PROJECT_AGENTS.md"
@@ -52,7 +56,7 @@ jobs:
 
           protected_changes="$(
             grep -E \
-              '^(rag_api_project/eval/(dev_questions|random_questions|test_questions)\.json|rag_api_project/evaluation/candidates\.py|rag_api_project/scripts/(validate_eval_candidates|promote_eval_candidates)\.py|rag_api_project/AGENTS(\.cs)?\.md|rag_api_project/docs/((cs|en)/)?EVAL_CURATOR_AGENT\.md|docs/(EVAL_CURATOR_AGENT|(cs|en)/(AGENTS|PROJECT_AGENTS|EVAL_CURATOR_AGENT))\.md|\.github/CODEOWNERS|\.github/workflows/eval-governance\.yml)$' \
+              '^(AGENTS\.md|experiments/dev_loop/AGENTS\.md|docs/(cs|en)/DEV_LOOP_POLICY\.md|rag_api_project/eval/(dev_questions|random_questions|test_questions)\.json|rag_api_project/evaluation/candidates\.py|rag_api_project/scripts/(validate_eval_candidates|promote_eval_candidates)\.py|rag_api_project/AGENTS(\.cs)?\.md|rag_api_project/docs/((cs|en)/)?EVAL_CURATOR_AGENT\.md|docs/(EVAL_CURATOR_AGENT|(cs|en)/(AGENTS|PROJECT_AGENTS|EVAL_CURATOR_AGENT))\.md|\.github/CODEOWNERS|\.github/workflows/eval-governance\.yml)$' \
               changed_files.txt \
               || true
           )"
