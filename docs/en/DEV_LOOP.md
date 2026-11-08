@@ -865,13 +865,13 @@ findings. A draft PR and passing checker do not approve a merge or waive finding
 The `Development loop controller` workflow runs unit/contract tests without model
 calls or publication credentials; live Docker tests remain explicitly opt-in.
 
-Publication is currently a host-side **CLI operation**, optionally called after the
-real LangGraph run. The n8n HTTP API still accepts only its existing fixed fixture
-tasks. It does not yet execute the real BM25 task or publish PRs. A later bounded
-integration can let n8n select a registered task and display its PR URL while
-LangGraph controls implementation/repair and the host controller handles GitHub.
-Do not add arbitrary shell commands, repository paths, source files or GitHub
-credentials to HTTP task payloads.
+The host-side publisher can be called from the CLI after a real LangGraph run.
+The original development API on port 8765 still accepts its existing fixed fixture
+tasks. A separate loopback API on 8766 lets n8n select an explicitly registered
+successful BM25 run, recheck it and obtain its PR URL. Real BM25 generation remains
+CLI-only. See [n8n publication setup](DEV_LOOP_N8N_PUBLICATION.md) for the host service,
+connection probe and manual workflow. HTTP payloads cannot carry arbitrary shell
+commands, repository paths, source files or GitHub credentials.
 
 To receive controller changes, fetch their reviewed branch through Git and update
 the intended clean worktree. A separate review worktree can be created from the
