@@ -1,4 +1,36 @@
+<a id="top"></a>
+
 # Evaluation Curator Agent
+
+[Česky](../cs/EVAL_CURATOR_AGENT.md#cz) · [English](#en) · [Dokumentace / Documentation](../README.md)
+
+<a id="obsah"></a>
+
+<details>
+<summary>Contents — click to expand</summary>
+
+- [Goal](#en-goal)
+- [Allowed output](#en-allowed-output)
+- [Existing datasets](#en-existing-datasets)
+- [Source material](#en-source-material)
+- [Candidate creation method](#en-candidate-creation-method)
+- [Candidate schema](#en-candidate-schema)
+- [Gold evidence rules](#en-gold-evidence-rules)
+- [Topic diversity](#en-topic-diversity)
+- [Prohibited behavior](#en-prohibited-behavior)
+- [Batch size](#en-batch-size)
+- [Validation](#en-validation)
+- [Human approval boundary](#en-human-approval-boundary)
+
+</details>
+
+---
+
+<a id="en"></a>
+
+**Working directory:** Run commands from `rag_api_project/`. Dataset and PDF paths below are relative to that project directory.
+
+<a id="en-goal"></a>
 
 ## Goal
 
@@ -16,6 +48,9 @@ The agent prepares candidates only.
 The agent must never promote candidates into the real evaluation datasets.
 
 ---
+
+
+<a id="en-allowed-output"></a>
 
 ## Allowed output
 
@@ -39,17 +74,24 @@ Do not modify:
 
 ---
 
+
+<a id="en-existing-datasets"></a>
+
 ## Existing datasets
 
-Before generating candidates, inspect:
+Before generating candidates, inspect DEV/RANDOM for duplicate facts and topic coverage:
 
 - eval/dev_questions.json
 - eval/random_questions.json
-- eval/test_questions.json, if it exists
+
+Keep `eval/test_questions.json` held out. The validation script checks its IDs and normalized questions automatically, without requiring manual inspection of TEST contents during development. Ensure all three dataset files are present: the script skips missing files.
 
 Avoid duplicate questions, duplicate facts, and unnecessarily repeated topics.
 
 ---
+
+
+<a id="en-source-material"></a>
 
 ## Source material
 
@@ -61,13 +103,18 @@ Gold evidence must come from the actual PDF text.
 
 Use the existing document explorer for discovery:
 
+```bash
 python -m scripts.search_pdf "<query>" --top-k 10 --interactive
+```
 
 BM25 search is a discovery tool only.
 
 A high BM25 score does not mean that a passage is correct gold evidence.
 
 ---
+
+
+<a id="en-candidate-creation-method"></a>
 
 ## Candidate creation method
 
@@ -90,28 +137,38 @@ For every candidate:
 
 ---
 
+
+<a id="en-candidate-schema"></a>
+
 ## Candidate schema
 
 Output must be a JSON array.
 
 Each item must follow this structure:
 
-{
-  "id": "topic_random_001",
-  "topic": "descriptive-topic",
-  "question": "One clear question?",
-  "gold_evidence": [
-    {
-      "source": "Exact_Source_Filename.pdf",
-      "pages": [123],
-      "contains_any": [
-        "Exact supporting fragment from the source page"
-      ]
-    }
-  ]
-}
+```json
+[
+  {
+    "id": "topic_random_001",
+    "topic": "descriptive-topic",
+    "question": "One clear question?",
+    "gold_evidence": [
+      {
+        "source": "Exact_Source_Filename.pdf",
+        "pages": [123],
+        "contains_any": [
+          "Exact supporting fragment from the source page"
+        ]
+      }
+    ]
+  }
+]
+```
 
 ---
+
+
+<a id="en-gold-evidence-rules"></a>
 
 ## Gold evidence rules
 
@@ -134,6 +191,9 @@ contains_any has OR semantics.
 Do not place two fragments into contains_any when both are required together to answer the question.
 
 ---
+
+
+<a id="en-topic-diversity"></a>
 
 ## Topic diversity
 
@@ -162,6 +222,9 @@ Never create a weak question just to improve topic balance.
 
 ---
 
+
+<a id="en-prohibited-behavior"></a>
+
 ## Prohibited behavior
 
 Do not:
@@ -179,25 +242,35 @@ Do not:
 
 ---
 
+
+<a id="en-batch-size"></a>
+
 ## Batch size
 
 Generate exactly 5 candidates per batch unless instructed otherwise.
 
 For RANDOM use IDs consistent with the existing dataset, for example:
 
+```text
 bgp_random_002
 ipv6_random_002
 routing_random_002
+```
 
 IDs must be unique across all evaluation datasets and the current candidate batch.
 
 ---
 
+
+<a id="en-validation"></a>
+
 ## Validation
 
 After writing the candidate JSON, run:
 
+```bash
 python -m scripts.validate_eval_candidates <candidate-file>
+```
 
 If validation fails:
 
@@ -209,9 +282,14 @@ Do not weaken the validator.
 
 A batch is complete only when validation prints:
 
+```text
 VALID: 5 candidate(s)
+```
 
 ---
+
+
+<a id="en-human-approval-boundary"></a>
 
 ## Human approval boundary
 
@@ -228,3 +306,5 @@ Report:
 Do not run promote_eval_candidates.
 
 Promotion requires explicit human approval.
+
+[↑ Back to top](#top)

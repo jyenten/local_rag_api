@@ -19,6 +19,7 @@ def cli(monkeypatch):
         ("app.config", "get_settings"),
         ("app.retrieval", "Retriever"),
         ("app.retrievers.vector", "VectorRetriever"),
+        ("app.retrievers.bm25", "BM25Retriever"),
     ):
         module = ModuleType(name)
         setattr(module, attribute, Mock())
@@ -30,14 +31,20 @@ def cli(monkeypatch):
     return cli
 
 
-@pytest.mark.parametrize("strategy", ["legacy", "vector"])
+@pytest.mark.parametrize("strategy", ["legacy", "vector","bm25"])
 @pytest.mark.parametrize("dataset", ["dev", "random"])
 def test_cli_evaluates_and_persists_latency(tmp_path, monkeypatch, capsys, strategy, dataset, cli):
     script = Path(cli.__file__)
     monkeypatch.setattr(sys, "argv", [str(script), "--retriever", strategy, "--dataset", dataset])
     assert set(cli.DATASET_PATHS) == {"dev", "random"}
     original_history = cli.HISTORY_PATHS[(strategy, dataset)]
-    expected_name = f"{dataset}{'_vector' if strategy == 'vector' else ''}_runs.jsonl"
+    suffixes = {
+        "legacy": "",
+        "vector": "_vector",
+        "bm25": "_bm25",
+    }
+
+    expected_name = f"{dataset}{suffixes[strategy]}_runs.jsonl"
     assert original_history == Path("eval/results") / expected_name
     path = tmp_path / expected_name
     monkeypatch.setitem(cli.HISTORY_PATHS, (strategy, dataset), path)
@@ -51,7 +58,16 @@ def test_cli_evaluates_and_persists_latency(tmp_path, monkeypatch, capsys, strat
     monkeypatch.setattr(cli, "get_settings", lambda: settings)
     fake = Mock()
     fake.search.return_value = (["evidence"], [0.1], [{"source": "manual.pdf", "page": 1}])
-    constructor = getattr(cli, "LegacyRetriever" if strategy == "legacy" else "VectorRetriever")
+    constructor_names = {
+        "legacy": "LegacyRetriever",
+        "vector": "VectorRetriever",
+        "bm25": "BM25Retriever",
+    }
+
+    constructor = getattr(
+        cli,
+        constructor_names[strategy]
+    )
     constructor.return_value = fake
     probe = Mock(side_effect=["fake-commit\n", ""])
     monkeypatch.setattr(cli.subprocess, "check_output", probe)

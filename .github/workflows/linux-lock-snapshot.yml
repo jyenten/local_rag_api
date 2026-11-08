@@ -1,4 +1,4 @@
-﻿name: Generate Linux Python Lock
+name: Generate Linux Python Lock
 
 on:
   push:
@@ -9,7 +9,6 @@ on:
       - "rag_api_project/requirements.txt"
       - "rag_api_project/requirements-linux-py311.lock.txt"
       - ".github/workflows/linux-lock-snapshot.yml"
-
   workflow_dispatch:
 
 permissions:
@@ -18,39 +17,32 @@ permissions:
 jobs:
   generate-lock:
     runs-on: ubuntu-24.04
-
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: rag_api_project
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
+        with:
+          persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.11"
-
-      - name: Install dependencies
+      - name: Resolve dependencies in a clean environment
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip check
-
+          python -m venv .venv-lock
+          .venv-lock/bin/python -m pip install --upgrade pip
+          .venv-lock/bin/python -m pip install -r requirements.txt
+          .venv-lock/bin/python -m pip check
       - name: Run regression tests
-        run: python -m pytest tests -q
-
+        run: .venv-lock/bin/python -m pytest tests -q
       - name: Generate Linux lock snapshot
         run: |
-          python -m pip freeze --all |
+          .venv-lock/bin/python -m pip freeze --all |
             grep -vE '^(pip|wheel)==' > requirements-linux-py311.lock.txt
-
-          python -m pip install --dry-run \
-            -r requirements-linux-py311.lock.txt
-
-          wc -l requirements-linux-py311.lock.txt
-
+          python -B scripts/check_dependency_lock.py
       - name: Upload Linux lock artifact
         uses: actions/upload-artifact@v4
         with:
@@ -58,28 +50,35 @@ jobs:
           path: rag_api_project/requirements-linux-py311.lock.txt
           retention-days: 7
           if-no-files-found: error
-  verify-lock:
-    name: Verify clean Linux installation
-    runs-on: ubuntu-24.04
 
+  verify-lock:
+    name: Verify generated Linux lock in a clean environment
+    needs: generate-lock
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: rag_api_project
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
+        with:
+          persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.11"
-
-      - name: Install locked dependencies
+      - name: Download the generated lock instead of testing the old committed copy
+        uses: actions/download-artifact@v4
+        with:
+          name: requirements-linux-py311
+          path: rag_api_project
+      - name: Install generated locked dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install --no-cache-dir -r requirements-linux-py311.lock.txt
-          python -m pip check
-
+          python -m venv .venv-verify
+          .venv-verify/bin/python -m pip install --upgrade pip
+          .venv-verify/bin/python -m pip install --no-cache-dir -r requirements-linux-py311.lock.txt
+          .venv-verify/bin/python -m pip check
+          python -B scripts/check_dependency_lock.py
       - name: Run regression tests
-        run: python -m pytest tests -q
+        run: .venv-verify/bin/python -m pytest tests -q

@@ -8,7 +8,17 @@ on:
       - "rag_api_project/scripts/validate_eval_candidates.py"
       - "rag_api_project/scripts/promote_eval_candidates.py"
       - "rag_api_project/AGENTS.md"
+      - "rag_api_project/AGENTS.cs.md"
       - "rag_api_project/docs/EVAL_CURATOR_AGENT.md"
+      - "rag_api_project/docs/en/EVAL_CURATOR_AGENT.md"
+      - "rag_api_project/docs/cs/EVAL_CURATOR_AGENT.md"
+      - "docs/en/AGENTS.md"
+      - "docs/cs/AGENTS.md"
+      - "docs/en/PROJECT_AGENTS.md"
+      - "docs/cs/PROJECT_AGENTS.md"
+      - "docs/EVAL_CURATOR_AGENT.md"
+      - "docs/en/EVAL_CURATOR_AGENT.md"
+      - "docs/cs/EVAL_CURATOR_AGENT.md"
       - ".github/CODEOWNERS"
       - ".github/workflows/eval-governance.yml"
 
@@ -42,7 +52,7 @@ jobs:
 
           protected_changes="$(
             grep -E \
-              '^(rag_api_project/eval/(dev_questions|random_questions|test_questions)\.json|rag_api_project/evaluation/candidates\.py|rag_api_project/scripts/(validate_eval_candidates|promote_eval_candidates)\.py|rag_api_project/AGENTS\.md|rag_api_project/docs/EVAL_CURATOR_AGENT\.md|\.github/CODEOWNERS|\.github/workflows/eval-governance\.yml)$' \
+              '^(rag_api_project/eval/(dev_questions|random_questions|test_questions)\.json|rag_api_project/evaluation/candidates\.py|rag_api_project/scripts/(validate_eval_candidates|promote_eval_candidates)\.py|rag_api_project/AGENTS(\.cs)?\.md|rag_api_project/docs/((cs|en)/)?EVAL_CURATOR_AGENT\.md|docs/(EVAL_CURATOR_AGENT|(cs|en)/(AGENTS|PROJECT_AGENTS|EVAL_CURATOR_AGENT))\.md|\.github/CODEOWNERS|\.github/workflows/eval-governance\.yml)$' \
               changed_files.txt \
               || true
           )"
@@ -69,7 +79,7 @@ jobs:
           exit 1
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.11"
 

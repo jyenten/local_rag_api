@@ -12,7 +12,7 @@ def normalize_question(text: str) -> str:
 
 def build_page_lookup(
     data_dir: Path,
-) -> dict[tuple[str, int], int]:
+) -> dict[tuple[str, int], str]:
     return {
         (page.source, page.page): normalize_evidence_text(page.text)
         for page in load_pdf_pages(data_dir)
@@ -66,7 +66,10 @@ def validate_candidate_questions(
             candidate.question
         )
 
-        if normalized_question in existing_question_texts:
+        if (
+            normalized_question in existing_question_texts
+            or normalized_question in candidate_question_texts
+        ):
             errors.append(
                 f"{candidate.id}: duplicate candidate question."
             )
@@ -86,22 +89,22 @@ def validate_candidate_questions(
                     (evidence.source, page_number)
                 )
 
-            if page_text is None:
-                errors.append(
-                    f"{candidate.id}: source/page does not exist: "
-                    f"{evidence.source} page {page_number}. "
-                )
-                continue
+                if page_text is None:
+                    errors.append(
+                        f"{candidate.id}: source/page does not exist: "
+                        f"{evidence.source} page {page_number}."
+                    )
+                    continue
 
-            if not any(
-                fragment in page_text
-                for fragment in normalized_fragments
-            ):
-                errors.append(
-                    f"{candidate.id}: no contains_any fragment "
-                    f"matches {evidence.source} "
-                    f"page {page_number}."
-                )
+                if not any(
+                    fragment in page_text
+                    for fragment in normalized_fragments
+                ):
+                    errors.append(
+                        f"{candidate.id}: no contains_any fragment "
+                        f"matches {evidence.source} "
+                        f"page {page_number}."
+                    )
 
     if errors:
         raise ValueError(

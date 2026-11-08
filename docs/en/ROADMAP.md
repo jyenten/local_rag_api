@@ -1,92 +1,149 @@
+<a id="top"></a>
+
 # AI RAG Project Roadmap
 
-## 1. Purpose
+[Česky](../cs/ROADMAP.md#cz) · [English](#en) · [Dokumentace / Documentation](../README.md)
 
-This document defines the development roadmap of the AI RAG project.
+<a id="obsah"></a>
 
-It describes:
+<details>
+<summary>Contents — click to expand</summary>
 
-- development phases
-- development order
-- estimated effort
-- planned Python modules
-- important functions
-- new concepts introduced in each phase
-- Definition of Done for each phase
-- current development focus
+- [Status snapshot — 2026-10-28](#en-status-snapshot--2026-10-28)
+- [Current development focus](#en-current-development-focus)
+- [Reading and updating the approved plan](#en-reading-and-updating-the-approved-plan)
+- [PHASE 1 - Functional RAG Skeleton](#en-phase-1---functional-rag-skeleton)
+- [PHASE 2 - Evaluation Foundation](#en-phase-2---evaluation-foundation)
+- [PHASE 2A - Universal Document Explorer](#en-phase-2a---universal-document-explorer)
+- [PHASE 2A.0 - Architecture Freeze](#en-phase-2a0---architecture-freeze)
+- [PHASE 2A.1 - Data Models](#en-phase-2a1---data-models)
+- [PHASE 2A.2 - Text Processing](#en-phase-2a2---text-processing)
+- [PHASE 2A.3 - Security Foundations](#en-phase-2a3---security-foundations)
+- [PHASE 2A.4 - PDF Loading and PDF Validation](#en-phase-2a4---pdf-loading-and-pdf-validation)
+- [PHASE 2A.5 - BM25 Index](#en-phase-2a5---bm25-index)
+- [PHASE 2A.6 - Search Engine](#en-phase-2a6---search-engine)
+- [PHASE 2A.7 - CLI](#en-phase-2a7---cli)
+- [PHASE 2A.8 - Integration](#en-phase-2a8---integration)
+- [PHASE 2B - Evaluation Data Models](#en-phase-2b---evaluation-data-models)
+- [PHASE 2C - Retrieval Metrics](#en-phase-2c---retrieval-metrics)
+- [PHASE 2D - Evaluation Runner and History](#en-phase-2d---evaluation-runner-and-history)
+- [PHASE 2E - RANDOM Evaluation](#en-phase-2e---random-evaluation)
+- [PHASE 2F - Complete Evaluation Dataset](#en-phase-2f---complete-evaluation-dataset)
+- [PHASE 3 - Retrieval Refactor](#en-phase-3---retrieval-refactor)
+- [PHASE 3.1 - Retrieval Models](#en-phase-31---retrieval-models)
+- [PHASE 3.2 - Embeddings](#en-phase-32---embeddings)
+- [PHASE 3.3 - Vector Search](#en-phase-33---vector-search)
+- [PHASE 3.4 - Query Processing](#en-phase-34---query-processing)
+- [PHASE 3.5 - Reranker](#en-phase-35---reranker)
+- [PHASE 3.6 - Scoring](#en-phase-36---scoring)
+- [PHASE 3.7 - Retrieval Service](#en-phase-37---retrieval-service)
+- [PHASE 4 - API Hardening](#en-phase-4---api-hardening)
+- [PHASE 4.1 - Application Lifecycle](#en-phase-41---application-lifecycle)
+- [PHASE 4.2 - Routes](#en-phase-42---routes)
+- [PHASE 4.3 - Dependency Injection](#en-phase-43---dependency-injection)
+- [PHASE 4.4 - Errors](#en-phase-44---errors)
+- [PHASE 4.5 - Middleware](#en-phase-45---middleware)
+- [PHASE 5 - Production Engineering](#en-phase-5---production-engineering)
+- [PHASE 5.1 - Linux / WSL2](#en-phase-51---linux--wsl2)
+- [PHASE 5.2 - Structured Logging](#en-phase-52---structured-logging)
+- [PHASE 5.3 - Runtime Metrics](#en-phase-53---runtime-metrics)
+- [PHASE 5.4 - Docker Hardening](#en-phase-54---docker-hardening)
+- [PHASE 5.5 - CI/CD](#en-phase-55---cicd)
+- [PHASE 6 - Security](#en-phase-6---security)
+- [PHASE 6.1 - Threat Modeling](#en-phase-61---threat-modeling)
+- [PHASE 6.2 - Runtime Input Validation](#en-phase-62---runtime-input-validation)
+- [PHASE 6.3 - Runtime Limits](#en-phase-63---runtime-limits)
+- [PHASE 6.4 - Secrets](#en-phase-64---secrets)
+- [PHASE 6.5 - Dependency Security](#en-phase-65---dependency-security)
+- [PHASE 6.6 - Container Security](#en-phase-66---container-security)
+- [PHASE 6.7 - HTTP Security](#en-phase-67---http-security)
+- [PHASE 6.8 - RAG-Specific Security](#en-phase-68---rag-specific-security)
+- [PHASE 7 - Production v1](#en-phase-7---production-v1)
+- [PHASE 7.1 - Health and Readiness](#en-phase-71---health-and-readiness)
+- [PHASE 7.2 - Production Smoke Test](#en-phase-72---production-smoke-test)
+- [PHASE 7.3 - Documentation](#en-phase-73---documentation)
+- [PHASE 8 - Expansion](#en-phase-8---expansion)
+- [PHASE 8A - Agent Exploration](#en-phase-8a---agent-exploration)
+- [PHASE 8B - SQL and ETL](#en-phase-8b---sql-and-etl)
+- [PHASE 8C - MLOps](#en-phase-8c---mlops)
+- [PHASE 8D - Advanced Agents](#en-phase-8d---advanced-agents)
+- [Original planning estimates — historical](#en-original-planning-estimates--historical)
+- [Planning history](#en-planning-history)
 
-The roadmap is intentionally phase-based.
+</details>
 
-The project follows:
+---
 
-```text
-Complete
-   ->
-Measure
-   ->
-Improve
-```
+<a id="en"></a>
 
-The goal is to avoid endless optimization of individual components before
-the complete system can be measured.
+This document owns **what to build, phase order, goals and acceptance criteria**.
+Use [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for how to implement/review work,
+[ARCHITECTURE.md](ARCHITECTURE.md) for component boundaries and
+[LEARNING_LOG.md](LEARNING_LOG.md) for dated work and learning evidence.
+
+
+<a id="en-status-snapshot--2026-10-28"></a>
+
+## Status snapshot — 2026-10-28
+
+This is the current planning checkpoint, not a renumbering or replacement of the
+approved phase specifications below. Completion of a milestone does not certify
+all acceptance criteria of its broader phase or production readiness.
+
+| Milestone | Observed status | Evidence / procedure |
+| --- | --- | --- |
+| RAG API, PDF ingestion and Chroma storage | Implemented prototype; hardening remains planned | [Project README](PROJECT.md), [architecture](ARCHITECTURE.md) |
+| Independent PDF page explorer | Implemented | `document_search/`, [operations](OPERATIONS.md) |
+| Evidence-based retrieval evaluation | Implemented: metrics, history, latency and provenance | `evaluation/`, [evaluation guide](EVALUATION.md) |
+| Chunk-level BM25 and Vector comparison | Implemented in the offline CLI on DEV/RANDOM | `app/retrievers/`, [recorded milestones](LEARNING_LOG.md#en-project-and-learning-history) |
+| Hybrid lexical/semantic retrieval with RRF | Local work in progress; not a published CLI/API mode | [Uncommitted-work record](LEARNING_LOG.md#en-uncommitted-work-observed-on-2026-10-28) |
+| Held-out TEST evaluation | Reserved for final assessment, not iterative tuning | [Evaluation policy](EVALUATION.md) |
+| Bilingual runbooks and validator regressions | Integrated through [PR #3](https://github.com/jyenten/local_rag_api/pull/3) | [Operations](OPERATIONS.md), [evaluation](EVALUATION.md) |
+| Dependency/security automation | Enabled; ChromaDB dependency findings remain open | `.github/workflows/`, [current project checkpoint](LEARNING_LOG.md#en-current-project-checkpoint) |
+
+Detailed results and historical MRR/Hit@K belong to the evaluation guide and
+learning log; this roadmap does not maintain a second benchmark table.
+
+
+<a id="en-current-development-focus"></a>
+
+## Current development focus
+
+The next recorded development milestone is hybrid BM25 + Vector retrieval with
+RRF. Complete and review the implementation, then measure DEV/RANDOM against the
+preserved baselines before deciding on improvements. Keep TEST held out.
+Separate local/backend experiments and unmerged dependency proposals remain
+subject to their own review; their presence is not integration into `main` or
+approval to replace the retrieval architecture.
+
+The learning journal historically used labels such as Phase 3.3 for BM25,
+Phase 3.4 for retrieval evaluation and Phase 3.5 for hybrid RRF. Those journal
+labels are **not IDs in this roadmap**. Here, the original phase numbers and
+names remain authoritative: 3.3 Vector Search, 3.4 Query Processing and
+3.5 Reranker. Use the full milestone name when referring to journal work.
+
+
+<a id="en-reading-and-updating-the-approved-plan"></a>
+
+## Reading and updating the approved plan
+
+The phase specifications below preserve the approved order, planned modules,
+learning concepts and Definition of Done checklists. Their original **Status**,
+estimates and unchecked boxes are a planning baseline, not a second live status
+tracker. Use the snapshot above for observed progress; do not infer that an
+existing module is missing just because an original checkbox remains unchecked.
+Do not mark acceptance criteria satisfied without the necessary evidence.
+
+The working method is **Complete → Measure → Improve**. Shared scope, backlog,
+freeze, testing and review rules live in the
+[development workflow](DEVELOPMENT_GUIDE.md#en-development-workflow), not here.
+Changes to phase goals, priorities or acceptance criteria require an explicit
+planning decision; editorial cleanup does not authorize them.
 
 ---
 
-## 2. Development Strategy
 
-The preferred development model is:
-
-```text
-working vertical system
-        ->
-measurement
-        ->
-identify weakest area
-        ->
-improve one subsystem
-        ->
-test
-        ->
-measure again
-```
-
-The project should avoid:
-
-```text
-perfect component A
-        ->
-perfect component B
-        ->
-perfect component C
-```
-
-because the most important system bottleneck may not be known until the
-complete pipeline exists.
-
-The project should also avoid:
-
-```text
-feature
-->
-temporary workaround
-->
-another feature
-->
-another workaround
-->
-large uncontrolled refactor
-```
-
-Each phase therefore has a clear Definition of Done.
-
-Once that Definition of Done is satisfied, the phase is frozen unless:
-
-- evaluation exposes a concrete problem
-- integration exposes a concrete problem
-- security exposes a concrete problem
-- requirements materially change
-
----
+<a id="en-phase-1---functional-rag-skeleton"></a>
 
 # PHASE 1 - Functional RAG Skeleton
 
@@ -366,6 +423,9 @@ When these conditions are satisfied, PHASE 1 is frozen.
 
 ---
 
+
+<a id="en-phase-2---evaluation-foundation"></a>
+
 # PHASE 2 - Evaluation Foundation
 
 **Status:** In progress
@@ -436,6 +496,9 @@ TEST should not be repeatedly inspected and tuned against.
 Its purpose is to estimate generalization after tuning is complete.
 
 ---
+
+
+<a id="en-phase-2a---universal-document-explorer"></a>
 
 # PHASE 2A - Universal Document Explorer
 
@@ -512,6 +575,9 @@ tests/
 
 ---
 
+
+<a id="en-phase-2a0---architecture-freeze"></a>
+
 # PHASE 2A.0 - Architecture Freeze
 
 ## Goal
@@ -538,6 +604,9 @@ are already being implemented unless a concrete technical issue requires
 it.
 
 ---
+
+
+<a id="en-phase-2a1---data-models"></a>
 
 # PHASE 2A.1 - Data Models
 
@@ -626,6 +695,9 @@ completed search score
 
 ---
 
+
+<a id="en-phase-2a2---text-processing"></a>
+
 # PHASE 2A.2 - Text Processing
 
 **Estimated work:** less than 1 hour
@@ -708,6 +780,9 @@ becomes approximately:
 
 ---
 
+
+<a id="en-phase-2a3---security-foundations"></a>
+
 # PHASE 2A.3 - Security Foundations
 
 **Estimated work:** approximately 1 hour
@@ -787,6 +862,9 @@ Internal functions can then operate on values that already satisfy the
 expected contract.
 
 ---
+
+
+<a id="en-phase-2a4---pdf-loading-and-pdf-validation"></a>
 
 # PHASE 2A.4 - PDF Loading and PDF Validation
 
@@ -890,6 +968,9 @@ explicit.
 
 ---
 
+
+<a id="en-phase-2a5---bm25-index"></a>
+
 # PHASE 2A.5 - BM25 Index
 
 **Estimated work:** less than 1 hour
@@ -953,6 +1034,9 @@ domain-specific manual heuristics.
 
 ---
 
+
+<a id="en-phase-2a6---search-engine"></a>
+
 # PHASE 2A.6 - Search Engine
 
 **Estimated work:** approximately 1 hour
@@ -1015,6 +1099,9 @@ caller.
 
 ---
 
+
+<a id="en-phase-2a7---cli"></a>
+
 # PHASE 2A.7 - CLI
 
 **Estimated work:** less than 1 hour
@@ -1060,6 +1147,9 @@ It should not contain:
 - ranking heuristics
 
 ---
+
+
+<a id="en-phase-2a8---integration"></a>
 
 # PHASE 2A.8 - Integration
 
@@ -1108,6 +1198,9 @@ advanced UI
 ```
 
 ---
+
+
+<a id="en-phase-2b---evaluation-data-models"></a>
 
 # PHASE 2B - Evaluation Data Models
 
@@ -1250,6 +1343,9 @@ within the same accepted evidence variant.
 
 ---
 
+
+<a id="en-phase-2c---retrieval-metrics"></a>
+
 # PHASE 2C - Retrieval Metrics
 
 **Estimated work:** approximately 1 hour
@@ -1322,6 +1418,9 @@ ranking.
 
 ---
 
+
+<a id="en-phase-2d---evaluation-runner-and-history"></a>
+
 # PHASE 2D - Evaluation Runner and History
 
 **Estimated work:** approximately 1 hour
@@ -1393,6 +1492,9 @@ This allows retrieval changes to be compared with evidence.
 
 ---
 
+
+<a id="en-phase-2e---random-evaluation"></a>
+
 # PHASE 2E - RANDOM Evaluation
 
 **Estimated work:** 2-3 hours
@@ -1449,6 +1551,9 @@ That remains the role of TEST.
 
 ---
 
+
+<a id="en-phase-2f---complete-evaluation-dataset"></a>
+
 # PHASE 2F - Complete Evaluation Dataset
 
 **Estimated work:** included in PHASE 2 estimate
@@ -1489,6 +1594,9 @@ measurement problem appears.
 
 ---
 
+
+<a id="en-phase-3---retrieval-refactor"></a>
+
 # PHASE 3 - Retrieval Refactor
 
 **Status:** Planned
@@ -1523,6 +1631,9 @@ app/
 
 ---
 
+
+<a id="en-phase-31---retrieval-models"></a>
+
 # PHASE 3.1 - Retrieval Models
 
 ## File
@@ -1545,6 +1656,9 @@ replace loosely structured dictionaries/tuples with explicit internal
 retrieval data types.
 
 ---
+
+
+<a id="en-phase-32---embeddings"></a>
 
 # PHASE 3.2 - Embeddings
 
@@ -1574,6 +1688,9 @@ Must not:
 
 ---
 
+
+<a id="en-phase-33---vector-search"></a>
+
 # PHASE 3.3 - Vector Search
 
 ## File
@@ -1599,6 +1716,9 @@ Higher layers should not depend directly on Chroma's response structure.
 
 ---
 
+
+<a id="en-phase-34---query-processing"></a>
+
 # PHASE 3.4 - Query Processing
 
 ## File
@@ -1619,6 +1739,9 @@ a measurable benefit.
 Domain-specific hardcoding should be removed.
 
 ---
+
+
+<a id="en-phase-35---reranker"></a>
 
 # PHASE 3.5 - Reranker
 
@@ -1648,6 +1771,9 @@ relevance score
 ```
 
 ---
+
+
+<a id="en-phase-36---scoring"></a>
 
 # PHASE 3.6 - Scoring
 
@@ -1691,6 +1817,9 @@ This avoids some score-scale problems.
 It should only be introduced if evaluation justifies it.
 
 ---
+
+
+<a id="en-phase-37---retrieval-service"></a>
 
 # PHASE 3.7 - Retrieval Service
 
@@ -1745,6 +1874,9 @@ Higher-level code should primarily call this public interface.
 
 ---
 
+
+<a id="en-phase-4---api-hardening"></a>
+
 # PHASE 4 - API Hardening
 
 **Status:** Planned
@@ -1773,6 +1905,9 @@ app/
 ```
 
 ---
+
+
+<a id="en-phase-41---application-lifecycle"></a>
 
 # PHASE 4.1 - Application Lifecycle
 
@@ -1818,6 +1953,9 @@ Benefits:
 
 ---
 
+
+<a id="en-phase-42---routes"></a>
+
 # PHASE 4.2 - Routes
 
 ## File
@@ -1844,6 +1982,9 @@ application services
 They should not contain retrieval implementation.
 
 ---
+
+
+<a id="en-phase-43---dependency-injection"></a>
 
 # PHASE 4.3 - Dependency Injection
 
@@ -1876,6 +2017,9 @@ Benefits:
 
 ---
 
+
+<a id="en-phase-44---errors"></a>
+
 # PHASE 4.4 - Errors
 
 ## File
@@ -1903,6 +2047,9 @@ Goal:
 convert internal failures into controlled structured HTTP responses.
 
 ---
+
+
+<a id="en-phase-45---middleware"></a>
 
 # PHASE 4.5 - Middleware
 
@@ -1935,6 +2082,9 @@ Responsibilities may include:
 
 ---
 
+
+<a id="en-phase-5---production-engineering"></a>
+
 # PHASE 5 - Production Engineering
 
 **Status:** Planned
@@ -1948,6 +2098,9 @@ Make the system reproducible, observable, containerized, and deployable.
 This phase includes Python code and infrastructure work.
 
 ---
+
+
+<a id="en-phase-51---linux--wsl2"></a>
 
 # PHASE 5.1 - Linux / WSL2
 
@@ -1977,6 +2130,9 @@ Linux compatibility also prepares the project for Docker and cloud
 deployment.
 
 ---
+
+
+<a id="en-phase-52---structured-logging"></a>
 
 # PHASE 5.2 - Structured Logging
 
@@ -2033,6 +2189,9 @@ Structured logs are easier to:
 - analyze automatically
 
 ---
+
+
+<a id="en-phase-53---runtime-metrics"></a>
 
 # PHASE 5.3 - Runtime Metrics
 
@@ -2095,6 +2254,9 @@ Both dimensions matter.
 
 ---
 
+
+<a id="en-phase-54---docker-hardening"></a>
+
 # PHASE 5.4 - Docker Hardening
 
 Files:
@@ -2132,6 +2294,9 @@ Potential benefits:
 Use only if it provides practical value for this project.
 
 ---
+
+
+<a id="en-phase-55---cicd"></a>
 
 # PHASE 5.5 - CI/CD
 
@@ -2179,6 +2344,9 @@ Possible improvements:
 
 ---
 
+
+<a id="en-phase-6---security"></a>
+
 # PHASE 6 - Security
 
 **Status:** Planned
@@ -2205,6 +2373,9 @@ app/
 ```
 
 ---
+
+
+<a id="en-phase-61---threat-modeling"></a>
 
 # PHASE 6.1 - Threat Modeling
 
@@ -2244,6 +2415,9 @@ generation model
 
 ---
 
+
+<a id="en-phase-62---runtime-input-validation"></a>
+
 # PHASE 6.2 - Runtime Input Validation
 
 ## File
@@ -2260,6 +2434,9 @@ validate_input_size(...)
 ```
 
 ---
+
+
+<a id="en-phase-63---runtime-limits"></a>
 
 # PHASE 6.3 - Runtime Limits
 
@@ -2282,6 +2459,9 @@ Future possible rate limiting may be evaluated here.
 
 ---
 
+
+<a id="en-phase-64---secrets"></a>
+
 # PHASE 6.4 - Secrets
 
 Tasks:
@@ -2294,6 +2474,9 @@ Tasks:
 
 ---
 
+
+<a id="en-phase-65---dependency-security"></a>
+
 # PHASE 6.5 - Dependency Security
 
 Tasks may include:
@@ -2304,6 +2487,9 @@ Tasks may include:
 - security update process
 
 ---
+
+
+<a id="en-phase-66---container-security"></a>
 
 # PHASE 6.6 - Container Security
 
@@ -2319,6 +2505,9 @@ Review:
 
 ---
 
+
+<a id="en-phase-67---http-security"></a>
+
 # PHASE 6.7 - HTTP Security
 
 Review:
@@ -2330,6 +2519,9 @@ Review:
 - authentication requirements if introduced
 
 ---
+
+
+<a id="en-phase-68---rag-specific-security"></a>
 
 # PHASE 6.8 - RAG-Specific Security
 
@@ -2369,6 +2561,9 @@ Security review should consider:
 
 ---
 
+
+<a id="en-phase-7---production-v1"></a>
+
 # PHASE 7 - Production v1
 
 **Status:** Planned
@@ -2393,6 +2588,9 @@ reasonably hardened
 ```
 
 ---
+
+
+<a id="en-phase-71---health-and-readiness"></a>
 
 # PHASE 7.1 - Health and Readiness
 
@@ -2434,6 +2632,9 @@ An application may be alive while its model or vector store is not ready.
 
 ---
 
+
+<a id="en-phase-72---production-smoke-test"></a>
+
 # PHASE 7.2 - Production Smoke Test
 
 ## File
@@ -2459,6 +2660,9 @@ record latency
 ```
 
 ---
+
+
+<a id="en-phase-73---documentation"></a>
 
 # PHASE 7.3 - Documentation
 
@@ -2510,6 +2714,9 @@ Production v1
 
 ---
 
+
+<a id="en-phase-8---expansion"></a>
+
 # PHASE 8 - Expansion
 
 PHASE 8 begins only after Production v1.
@@ -2518,6 +2725,9 @@ The purpose is to expand skills and system capabilities without
 destabilizing the core RAG project.
 
 ---
+
+
+<a id="en-phase-8a---agent-exploration"></a>
 
 # PHASE 8A - Agent Exploration
 
@@ -2615,6 +2825,9 @@ final response
 - [ ] scope remains intentionally small
 
 ---
+
+
+<a id="en-phase-8b---sql-and-etl"></a>
 
 # PHASE 8B - SQL and ETL
 
@@ -2730,6 +2943,9 @@ It represents a common data-engineering pipeline pattern.
 
 ---
 
+
+<a id="en-phase-8c---mlops"></a>
+
 # PHASE 8C - MLOps
 
 **Estimated work:** 8-12 hours
@@ -2828,6 +3044,9 @@ Possible responsibilities:
 
 ---
 
+
+<a id="en-phase-8d---advanced-agents"></a>
+
 # PHASE 8D - Advanced Agents
 
 **Status:** Future
@@ -2851,9 +3070,16 @@ This phase must not be designed prematurely.
 
 ---
 
-# Estimated Remaining Development Time
 
-Approximate active development time:
+<a id="en-original-planning-estimates--historical"></a>
+
+# Original planning estimates — historical
+
+These values are preserved from the original plan. They are not a current
+remaining-work forecast or a delivery commitment; reassessment requires a
+separate planning decision.
+
+Original active-development estimates (not recalculated):
 
 | Phase | Estimated time |
 |---|---:|
@@ -2868,7 +3094,7 @@ Approximate active development time:
 | PHASE 8B SQL / ETL | 6-10 h |
 | PHASE 8C MLOps | 8-12 h |
 
-Approximate remaining effort to Production v1:
+Original estimate of remaining effort to Production v1:
 
 ```text
 43-70 hours
@@ -2887,161 +3113,15 @@ They are not pure typing estimates.
 
 ---
 
-# Current Project Status
 
-## Completed or largely completed
+<a id="en-planning-history"></a>
 
-```text
-RAG skeleton
-PDF ingestion
-ChromaDB
-embedding retrieval
-CrossEncoder reranking
-generation
-FastAPI API
-basic Docker setup
-GitHub Actions CI
-smoke tests
-ingestion tests
-initial evaluation framework
-```
+## Planning history
 
----
+The previous Phase 2A status and step-by-step immediate-task list are retained in
+[the pre-cleanup roadmap revision](https://github.com/jyenten/local_rag_api/blob/d7c3b4f71711c798646bd0a878b96b9c46c92d93/rag_api_project/docs/ROADMAP.md#historical-project-status-original-phase-2a-plan).
+They describe an earlier checkpoint, not today's next steps. Completed work is
+recorded in [LEARNING_LOG.md](LEARNING_LOG.md); the current focus belongs
+only to this roadmap's [current development focus](#en-current-development-focus).
 
-## Current Development Phase
-
-```text
-PHASE 2
-Evaluation Foundation
-```
-
-Current subphase:
-
-```text
-PHASE 2A
-Universal Document Explorer
-```
-
-Current step:
-
-```text
-PHASE 2A.0
-Architecture Freeze
-```
-
-Current documentation:
-
-```text
-docs/ROADMAP.md
-docs/ARCHITECTURE.md
-docs/DEVELOPMENT_GUIDE.md
-```
-
----
-
-# Immediate Next Steps
-
-After documentation is committed:
-
-```text
-PHASE 2A.1
-document_search/models.py
-```
-
-Then:
-
-```text
-PHASE 2A.2
-normalize.py
-+
-tokenize.py
-+
-unit tests
-```
-
-Then:
-
-```text
-PHASE 2A.3
-security foundations
-```
-
-Then:
-
-```text
-PHASE 2A.4
-PDF loading
-+
-PDF validation
-```
-
-Then:
-
-```text
-PHASE 2A.5
-BM25 index
-```
-
-Then:
-
-```text
-PHASE 2A.6
-search engine
-```
-
-Then:
-
-```text
-PHASE 2A.7
-CLI
-```
-
-Then:
-
-```text
-PHASE 2A.8
-integration
-```
-
-After PHASE 2A satisfies its Definition of Done:
-
-```text
-freeze PHASE 2A
-    ->
-continue PHASE 2B
-```
-
----
-
-# Final Roadmap Rule
-
-When a new idea appears, ask:
-
-```text
-Does this help satisfy the current phase Definition of Done?
-```
-
-If yes:
-
-```text
-implement it
-```
-
-If no:
-
-```text
-record it for later
-and continue the current phase
-```
-
-The project should optimize for:
-
-```text
-completed
-measured
-tested
-understandable
-reproducible
-```
-
-systems rather than endless local refinement.
+[↑ Back to top](#top)

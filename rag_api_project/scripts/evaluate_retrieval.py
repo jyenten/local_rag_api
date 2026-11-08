@@ -6,6 +6,7 @@ from pathlib import Path
 from app.config import get_settings
 from app.retrieval import Retriever as LegacyRetriever
 from app.retrievers.vector import VectorRetriever
+from app.retrievers.bm25 import BM25Retriever
 from evaluation.dataset import (
     calculate_dataset_hash,
     load_dataset,
@@ -37,6 +38,18 @@ HISTORY_PATHS = {
     ("vector", "random"): Path(
         "eval/results/random_vector_runs.jsonl"
     ),
+    ("bm25", "dev"): Path(
+        "eval/results/dev_bm25_runs.jsonl"
+    ),
+    ("bm25", "random"): Path(
+        "eval/results/random_bm25_runs.jsonl"
+    ),
+}
+
+RETRIEVERS = {
+    "vector": VectorRetriever,
+    "bm25": BM25Retriever,
+    "legacy": LegacyRetriever,
 }
 
 
@@ -50,7 +63,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--retriever",
-        choices=("legacy", "vector"),
+        choices=tuple(RETRIEVERS),
         default="legacy",
         help="Retrieval strategy to evaluate.",
     )
@@ -104,15 +117,15 @@ def build_retriever(
     name: str,
     settings,
 ):
-    if name == "legacy":
-        return LegacyRetriever(settings)
+    try:
+        retriever_class = RETRIEVERS[name]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown retriever: {name}"
+        ) from exc
 
-    if name == "vector":
-        return VectorRetriever(settings)
+    return retriever_class(settings)
 
-    raise ValueError(
-        f"Unknown retriever: {name}"
-    )
 
 
 def main() -> None:

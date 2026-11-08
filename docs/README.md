@@ -1,0 +1,49 @@
+<a id="dokumentace-ai-rag--ai-rag-documentation"></a>
+
+# Dokumentace Local RAG API / Local RAG API documentation
+
+Veškerá verzovaná Markdown dokumentace je v této složce. Jedinou výjimkou je [hlavní README](../README.md) v kořeni repozitáře. / All versioned Markdown documentation lives here; the sole exception is the [root README](../README.md).
+
+Příručky mají samostatný obsah kapitol a závěrečný odkaz nahoru. / Guides have chapter contents and a final back-to-top link.
+
+## První návštěva / First visit
+
+| Co hledáš / What to inspect | Česky | English |
+| --- | --- | --- |
+| Co projekt řeší a obsahuje / Problem and implemented features | [Přehled projektu](cs/PROJECT.md#cz) | [Project overview](en/PROJECT.md#en) |
+| Zaznamenané výsledky a jejich omezení / Recorded results and limits | [Historický baseline](cs/EVALUATION.md#cz-8-historický-baseline-phase-34-2026-10-20) | [Historical baseline](en/EVALUATION.md#en-8-historical-baseline-2026-10-20) |
+| Jak jej spustit / Run locally | [Provozní příručka](cs/OPERATIONS.md#cz) | [Operations runbook](en/OPERATIONS.md#en) |
+
+## Všechny příručky / All guides
+
+| Oblast / Topic | Česky | English |
+| --- | --- | --- |
+| Přehled repozitáře / Repository overview | [Česky](cs/README.md#cz) | [English](../README.md#en) |
+| Přehled RAG projektu / RAG project overview | [Česky](cs/PROJECT.md#cz) | [English](en/PROJECT.md#en) |
+| Instalace a provoz / Setup and operations | [Česky](cs/OPERATIONS.md#cz) | [English](en/OPERATIONS.md#en) |
+| Bezpečnost ChromaDB / ChromaDB security | [Česky](cs/CHROMA_SECURITY.md) | [English](en/CHROMA_SECURITY.md) |
+| Golden evidence a evaluace / Golden evidence and evaluation | [Česky](cs/EVALUATION.md#cz) | [English](en/EVALUATION.md#en) |
+| Pravidla kurátora / Curator rules | [Česky](cs/EVAL_CURATOR_AGENT.md#cz) | [English](en/EVAL_CURATOR_AGENT.md#en) |
+| Architektura / Architecture | [Česky](cs/ARCHITECTURE.md#cz) | [English](en/ARCHITECTURE.md#en) |
+| Plán fází / Phase plan | [Česky](cs/ROADMAP.md#cz) | [English](en/ROADMAP.md#en) |
+| Vývoj a revize / Development and review | [Česky](cs/DEVELOPMENT_GUIDE.md#cz) | [English](en/DEVELOPMENT_GUIDE.md#en) |
+| Deník učení / Learning log | [Česky](cs/LEARNING_LOG.md#cz) | [English](en/LEARNING_LOG.md#en) |
+
+## Pravidla agentů / Agent rules
+
+Před změnou souborů načti globální pravidla a pro práci na RAG také projektová pravidla. Umístění dokumentů nemění jejich působnost. Pravidla se načítají výslovně přes odkazy z hlavního README. / Before changing files, read the repository rules and, for RAG work, the project rules. Their storage location does not narrow their scope. Load these files explicitly through the root README links.
+
+| Pravidla / Rules | Česky | English |
+| --- | --- | --- |
+| Globální / Repository-wide | [Česky](cs/AGENTS.md#cz) | [English](en/AGENTS.md#en) |
+| RAG projekt / RAG project | [Česky](cs/PROJECT_AGENTS.md#cz) | [English](en/PROJECT_AGENTS.md#en) |
+
+## Další dokumenty / Other documents
+
+Soubory `ARCHITECTURE.md`, `ROADMAP.md`, `DEVELOPMENT_GUIDE.md`, `OPERATIONS.md`, `EVALUATION.md` a `EVAL_CURATOR_AGENT.md` přímo v `docs/` jsou rozcestníky na jazykové verze a kapitoly. / These files directly under `docs/` are navigation pages for the language versions and chapters.
+
+## Odkazy a údržba / Links and maintenance
+
+Při změně návodu aktualizuj oba jazyky. Příkazy pro aplikaci, ingest, PDF a evaluaci se spouštějí z `rag_api_project/`; umístění příručky tento pracovní adresář nemění. / Keep both languages synchronized. Application, ingestion, PDF and evaluation commands run from `rag_api_project/`; the guide location does not change that working directory.
+
+Pravidla agentů a kurátora v obou jazycích chrání CODEOWNERS a Eval Governance. Změny chráněných pravidel vyžadují lidské schválení. / CODEOWNERS and Eval Governance protect agent and curator instructions in both languages; protected-rule changes require human approval.

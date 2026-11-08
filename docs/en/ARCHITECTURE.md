@@ -1,4 +1,76 @@
+<a id="top"></a>
+
 # AI RAG Project Architecture
+
+[Česky](../cs/ARCHITECTURE.md#cz) · [English](#en) · [Dokumentace / Documentation](../README.md)
+
+<a id="obsah"></a>
+
+<details>
+<summary>Contents — click to expand</summary>
+
+- [Current implementation snapshot (2026-10-28)](#en-current-implementation-snapshot-2026-10-28)
+- [Identity and evaluation boundary](#en-identity-and-evaluation-boundary)
+- [1. Purpose](#en-1-purpose)
+- [2. Architectural Principles](#en-2-architectural-principles)
+- [3. High-Level System Architecture](#en-3-high-level-system-architecture)
+- [4. Offline Data Pipeline](#en-4-offline-data-pipeline)
+- [5. Runtime Application](#en-5-runtime-application)
+- [6. Target Retrieval Architecture](#en-6-target-retrieval-architecture)
+- [7. Generation Architecture](#en-7-generation-architecture)
+- [8. RAG Orchestration](#en-8-rag-orchestration)
+- [9. API Architecture](#en-9-api-architecture)
+- [10. Evaluation Architecture](#en-10-evaluation-architecture)
+- [11. Evaluation Dataset Roles](#en-11-evaluation-dataset-roles)
+- [12. Evaluation Flow](#en-12-evaluation-flow)
+- [13. Universal Document Explorer](#en-13-universal-document-explorer)
+- [14. Document Explorer Data Flow](#en-14-document-explorer-data-flow)
+- [15. Document Search Models](#en-15-document-search-models)
+- [16. Document Explorer Security Boundary](#en-16-document-explorer-security-boundary)
+- [17. Security Architecture](#en-17-security-architecture)
+- [18. Observability Architecture](#en-18-observability-architecture)
+- [19. Testing Architecture](#en-19-testing-architecture)
+- [20. Infrastructure Architecture](#en-20-infrastructure-architecture)
+- [21. Dependency Direction](#en-21-dependency-direction)
+- [22. Public Interfaces](#en-22-public-interfaces)
+- [23. Current Technical Debt](#en-23-current-technical-debt)
+- [24. Target Project Structure](#en-24-target-project-structure)
+- [25. Architecture Change Rule](#en-25-architecture-change-rule)
+- [26. Historical Phase 2A Architectural Focus](#en-26-historical-phase-2a-architectural-focus)
+
+</details>
+
+---
+
+<a id="en"></a>
+
+<a id="en-current-implementation-snapshot-2026-10-28"></a>
+
+## Current implementation snapshot (2026-10-28)
+
+The sections marked **target** below describe planned design, not necessarily shipped code. The default `main` branch currently contains:
+
+- Runtime: `app/main.py`, `app/rag.py`, `app/retrieval.py` for the existing FastAPI RAG path.
+- Experiment retrievers: `app/retrievers/vector.py` and `app/retrievers/bm25.py` over the same Chroma collection.
+- Offline evaluation: `scripts/evaluate_retrieval.py` selects `legacy`, `vector` or `bm25` on DEV/RANDOM.
+- Evidence: `evaluation/evidence.py`, `evaluation/candidates.py`, approved JSON datasets and independent page-based `scripts/search_pdf.py`.
+- Hybrid RRF is **in progress** and is not yet an established selectable CLI or `/ask` mode.
+- PDF ingestion `scripts/ingest.py` **deletes and recreates** its target Chroma collection.
+
+Architecture boundaries: the standalone page explorer is not the chunk-level BM25 retriever; retrieval evaluation is independent of the HTTP answer pipeline; no raw BM25 relevance score may be added directly to vector distances. The separate bilingual [OPERATIONS.md](OPERATIONS.md) and [EVALUATION.md](EVALUATION.md) contain verified commands and golden-evidence governance.
+
+
+<a id="en-identity-and-evaluation-boundary"></a>
+
+## Identity and evaluation boundary
+
+A Chroma chunk has an `id` distinct from `chunk_index`. `source`, physical `page` and chunk metadata preserve provenance. Planned hybrid fusion should match the same chunk by stable Chroma ID, not by text equality or page number alone. When changes to retrieval ranking or chunk identity are introduced, compare DEV and RANDOM results under controlled corpus/configuration and keep TEST held out.
+
+---
+
+
+
+<a id="en-1-purpose"></a>
 
 ## 1. Purpose
 
@@ -21,6 +93,9 @@ Domain-specific behavior must not be embedded into generic retrieval,
 evaluation, document loading, or infrastructure components.
 
 ---
+
+
+<a id="en-2-architectural-principles"></a>
 
 ## 2. Architectural Principles
 
@@ -176,6 +251,9 @@ comparison
 
 ---
 
+
+<a id="en-3-high-level-system-architecture"></a>
+
 ## 3. High-Level System Architecture
 
 The main runtime architecture is:
@@ -215,6 +293,9 @@ system or the document explorer.
 
 ---
 
+
+<a id="en-4-offline-data-pipeline"></a>
+
 ## 4. Offline Data Pipeline
 
 The ingestion pipeline is separate from online query processing.
@@ -249,6 +330,9 @@ Future refactoring may split ingestion into additional modules, but this
 is not required until measurements or complexity justify it.
 
 ---
+
+
+<a id="en-5-runtime-application"></a>
 
 ## 5. Runtime Application
 
@@ -336,9 +420,9 @@ heuristic scoring
 result selection
 ```
 
-This file is intentionally left operational until PHASE 3.
+This file remains operational alongside the experiment retrievers in `app/retrievers/`.
 
-During PHASE 3 it will be decomposed into:
+The approved PHASE 3 target proposes decomposition into:
 
 ```text
 app/
@@ -368,6 +452,9 @@ retrieve(
 ```
 
 ---
+
+
+<a id="en-6-target-retrieval-architecture"></a>
 
 ## 6. Target Retrieval Architecture
 
@@ -550,6 +637,9 @@ than individual retrieval internals.
 
 ---
 
+
+<a id="en-7-generation-architecture"></a>
+
 ## 7. Generation Architecture
 
 Current file:
@@ -583,6 +673,9 @@ output processing
 This split should only be introduced if complexity justifies it.
 
 ---
+
+
+<a id="en-8-rag-orchestration"></a>
 
 ## 8. RAG Orchestration
 
@@ -625,6 +718,9 @@ HTTP transport
 Its role is orchestration.
 
 ---
+
+
+<a id="en-9-api-architecture"></a>
 
 ## 9. API Architecture
 
@@ -761,6 +857,9 @@ logic.
 
 ---
 
+
+<a id="en-10-evaluation-architecture"></a>
+
 ## 10. Evaluation Architecture
 
 Evaluation is independent from the runtime application.
@@ -809,6 +908,9 @@ evaluation
 
 ---
 
+
+<a id="en-11-evaluation-dataset-roles"></a>
+
 ## 11. Evaluation Dataset Roles
 
 Three dataset categories are intentionally separated.
@@ -848,6 +950,9 @@ reduce its value as an independent generalization check.
 
 ---
 
+
+<a id="en-12-evaluation-flow"></a>
+
 ## 12. Evaluation Flow
 
 ```text
@@ -885,6 +990,9 @@ configuration
 This makes results reproducible and comparable.
 
 ---
+
+
+<a id="en-13-universal-document-explorer"></a>
 
 ## 13. Universal Document Explorer
 
@@ -926,6 +1034,9 @@ scripts/search_pdf.py
 ```
 
 ---
+
+
+<a id="en-14-document-explorer-data-flow"></a>
 
 ## 14. Document Explorer Data Flow
 
@@ -984,6 +1095,9 @@ CrossEncoder reranking
 This separation reduces circular benchmark construction.
 
 ---
+
+
+<a id="en-15-document-search-models"></a>
 
 ## 15. Document Search Models
 
@@ -1047,6 +1161,9 @@ independently.
 
 ---
 
+
+<a id="en-16-document-explorer-security-boundary"></a>
+
 ## 16. Document Explorer Security Boundary
 
 The PDF corpus is treated as external input.
@@ -1089,6 +1206,9 @@ If a document cannot be safely or completely loaded, the failure should
 be explicit.
 
 ---
+
+
+<a id="en-17-security-architecture"></a>
 
 ## 17. Security Architecture
 
@@ -1161,6 +1281,9 @@ dependency vulnerabilities
 ```
 
 ---
+
+
+<a id="en-18-observability-architecture"></a>
 
 ## 18. Observability Architecture
 
@@ -1243,6 +1366,9 @@ These measure different aspects of the system and should not be mixed.
 
 ---
 
+
+<a id="en-19-testing-architecture"></a>
+
 ## 19. Testing Architecture
 
 Current tests live in:
@@ -1313,6 +1439,9 @@ Small synthetic inputs should be preferred for deterministic unit tests.
 Real corpus tests belong in integration or manual validation workflows.
 
 ---
+
+
+<a id="en-20-infrastructure-architecture"></a>
 
 ## 20. Infrastructure Architecture
 
@@ -1393,6 +1522,9 @@ is stable enough to deploy reliably.
 
 ---
 
+
+<a id="en-21-dependency-direction"></a>
+
 ## 21. Dependency Direction
 
 The intended dependency direction is:
@@ -1436,6 +1568,9 @@ document_search → OSPF logic
 This reduces coupling.
 
 ---
+
+
+<a id="en-22-public-interfaces"></a>
 
 ## 22. Public Interfaces
 
@@ -1484,6 +1619,9 @@ change.
 
 ---
 
+
+<a id="en-23-current-technical-debt"></a>
+
 ## 23. Current Technical Debt
 
 Known architectural debt is documented below.
@@ -1524,37 +1662,13 @@ PHASE 3
 
 ---
 
-### 23.3 Evaluation
+### 23.3 Evaluation — foundation implemented
 
-Current evaluation scripts exist primarily under:
-
-```text
-scripts/
-```
-
-Target:
-
-move reusable evaluation logic into:
-
-```text
-evaluation/
-```
-
-while leaving CLI and orchestration scripts under:
-
-```text
-scripts/
-```
-
-Resolution:
-
-```text
-PHASE 2
-```
+Reusable dataset loading, evidence matching, metrics, latency and history already live in `evaluation/`; CLI orchestration remains in `scripts/`. The older `scripts.evaluate_random` still contains history-path, Git-status and metric-output defects. The supported comparison workflow is `scripts.evaluate_retrieval` on DEV/RANDOM; see [EVALUATION.md](EVALUATION.md).
 
 ---
 
-### 23.4 Document Search
+### 23.4 Document Search — historical prototype replaced
 
 The previous heuristic search prototype experimented with:
 
@@ -1566,9 +1680,9 @@ anchor terms
 manual exclusions
 ```
 
-That implementation is not the target architecture.
+That historical prototype has been replaced by the generic page-based BM25 implementation in `document_search/`.
 
-Target:
+Current discovery workflow:
 
 ```text
 generic BM25 search
@@ -1576,11 +1690,7 @@ generic BM25 search
 human evidence validation
 ```
 
-Resolution:
-
-```text
-PHASE 2A
-```
+Source-PDF evidence still requires human validation, independently of search ranking.
 
 ---
 
@@ -1606,6 +1716,9 @@ or measurements expose a concrete problem
 Avoid refactoring ingestion only for architectural symmetry.
 
 ---
+
+
+<a id="en-24-target-project-structure"></a>
 
 ## 24. Target Project Structure
 
@@ -1697,19 +1810,21 @@ rag_api_project/
 │   ├── random/
 │   └── test_questions.json
 │
-├── docs/
-│   ├── ROADMAP.md
-│   ├── ARCHITECTURE.md
-│   └── DEVELOPMENT_GUIDE.md
-│
 ├── Dockerfile
 ├── compose.yaml
 ├── requirements.txt
-├── README.md
 └── .env.example
 ```
 
-This is a target structure.
+This is a target application-module structure. Documentation remains centralized at the repository root; this diagram does not plan a move back into `rag_api_project/`.
+
+| Documentation | Repository path |
+| --- | --- |
+| Portfolio entry | [README.md](../../README.md) |
+| Documentation index | [docs/README.md](../README.md) |
+| English project overview | [docs/en/PROJECT.md](PROJECT.md) |
+| Czech project overview | [docs/cs/PROJECT.md](../cs/PROJECT.md) |
+| Language guides and rules | `docs/en/` and `docs/cs/` |
 
 Directories should be created only when their corresponding development
 phase begins.
@@ -1718,6 +1833,9 @@ The project should not create empty architecture merely to match the
 diagram.
 
 ---
+
+
+<a id="en-25-architecture-change-rule"></a>
 
 ## 25. Architecture Change Rule
 
@@ -1747,7 +1865,12 @@ preferred.
 
 ---
 
-## 26. Current Architectural Focus
+
+<a id="en-26-historical-phase-2a-architectural-focus"></a>
+
+## 26. Historical Phase 2A Architectural Focus
+
+The sequence below preserves the original plan. It is no longer the active step; see the [current implementation snapshot](#en-current-implementation-snapshot-2026-10-28) and [current development focus](ROADMAP.md#en-current-development-focus). The current work is the hybrid RRF experiment described in the development log; this does not renumber the approved roadmap.
 
 Current development phase:
 
@@ -1792,3 +1915,5 @@ architecture freeze
 PHASE 2A.1
 document_search/models.py
 ```
+
+[↑ Back to top](#top)

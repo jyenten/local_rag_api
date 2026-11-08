@@ -15,7 +15,19 @@
 
 # Agent governance.
 /rag_api_project/AGENTS.md @jyenten
+/rag_api_project/AGENTS.cs.md @jyenten
 /rag_api_project/docs/EVAL_CURATOR_AGENT.md @jyenten
+/rag_api_project/docs/en/EVAL_CURATOR_AGENT.md @jyenten
+/rag_api_project/docs/cs/EVAL_CURATOR_AGENT.md @jyenten
+
+# Centralized agent/curator instructions; retain legacy protected paths above.
+/docs/en/AGENTS.md @jyenten
+/docs/cs/AGENTS.md @jyenten
+/docs/en/PROJECT_AGENTS.md @jyenten
+/docs/cs/PROJECT_AGENTS.md @jyenten
+/docs/EVAL_CURATOR_AGENT.md @jyenten
+/docs/en/EVAL_CURATOR_AGENT.md @jyenten
+/docs/cs/EVAL_CURATOR_AGENT.md @jyenten
 
 # Evaluation governance workflow.
 /.github/workflows/eval-governance.yml @jyenten

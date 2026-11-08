@@ -4,9 +4,10 @@ on:
   pull_request:
   push:
     branches:
-      - document-search-bm25
+      - main
     paths:
       - "rag_api_project/requirements.txt"
+      - "rag_api_project/requirements-linux-py311.lock.txt"
       - ".github/workflows/pip-audit.yml"
   workflow_dispatch:
   schedule:
@@ -28,13 +29,34 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.11"
 
-      # Requirements are not pinned yet: this audits freshly resolved versions,
-      # not the exact dependency versions installed on developer machines.
+      # Direct versions are pinned; this resolves their transitive dependencies.
+      # The independent job below audits the exact Linux installation snapshot.
       - name: Audit requirements and transitive dependencies
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
         with:
           inputs: rag_api_project/requirements.txt
+
+  pip-audit-linux-lock:
+    name: Audit locked Linux dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.11"
+
+      - name: Audit all locked Linux dependencies
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
+        with:
+          inputs: rag_api_project/requirements-linux-py311.lock.txt
