@@ -161,7 +161,11 @@ Bezpečnost platí v celém vývoji, nejen v plánované bezpečnostní fázi. V
 
 Audit závislostí, Dependency Review, Gitleaks a Dependabot jsou již nakonfigurované. Jejich nálezy považuj za podněty k šetření; úspěšné Python testy neřeší zranitelnost závislosti. Nevypínej ani neoslabuj kontroly, aby změna vypadala zdravě.
 
-Pinování verzí a přijetí lock souboru zůstávají samostatnou revidovanou prací na závislostech. Platformně specifický nebo lokálně vytvořený lock není automaticky přenositelný ani schválený. Před přijetím ověř konzistenci, podporovaný Python/OS, čistou instalaci, regrese a pravidla aktualizace.
+`requirements.txt` připíná přímé závislosti a čtyři výslovné bezpečnostní piny nepřímých/build balíčků. Linux CI používá `requirements-linux-py311.lock.txt` (Ubuntu 24.04, Python 3.11) v čistém virtuálním prostředí. Tento lock není instalační soubor pro Windows. Příkaz `python -B scripts/check_dependency_lock.py`, spuštěný z `rag_api_project/`, kontroluje shodu všech přímých a bezpečnostních pinů s lock souborem.
+
+Při změně verzí aktualizuj oba manifesty a ověř čistou instalaci, `pip check`, všechny regresní testy a oba audity závislostí. Audity běží nezávisle: jeden vyřeší závislosti z `requirements.txt`, druhý kontroluje přesný Linux lock včetně nepřímých balíčků. Nálezy nadále způsobí selhání CI.
+
+Workflow **Generate Linux Python Lock** lze ručně spustit na větvi se závislostmi a znovu vytvořit snapshot v čistém prostředí. Ověřovací job stáhne právě vytvořený artefakt do druhého čistého prostředí a spustí v něm testy. Artefakt zkontroluj a commituj přes Git; workflow do větví nezapisuje. Připnutí ChromaDB 1.5.9 neopravuje známé zranitelnosti ani neschvaluje rizikovou výjimku; viz [CHROMA_SECURITY.md](CHROMA_SECURITY.md).
 
 Před doporučením či spuštěním `python -m scripts.ingest` vysvětli, že nakonfigurovanou Chroma kolekci **smaže a znovu vytvoří**. Dodrž zálohovací, konfigurační a schvalovací hranice v [OPERATIONS.md](OPERATIONS.md#cz).
 

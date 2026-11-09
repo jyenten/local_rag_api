@@ -102,8 +102,13 @@ potřebují tuto samostatnou službu znovu bezpečně zpřístupnit.
 
 ## Stav auditu a podmínky dalšího rozhodnutí
 
-`requirements.txt` ani `.github/workflows/pip-audit.yml` se touto úpravou nemění.
-Audit zůstává aktivní a nálezy zůstávají viditelné. Nejsou přidána `ignore-vuln`,
+Samotná úprava loopback portu zachovala `requirements.txt` i auditovací workflow.
+Samostatná aktualizace závislostí v PR #1 ze dne **2026-11-08** opravuje pět
+dalších označených balíčků a přidává nezávislý audit přesného Linux lock souboru.
+Audit všech 124 uzamčených balíčků nástrojem pip-audit 2.10.1 následně hlásí pět
+záznamů pouze u ChromaDB 1.5.9 (čtyři výše uvedená CVE včetně jedné duplicity).
+Jde o audit balíčků/verzí, nikoli test zneužití či schválení zbývajícího rizika
+ChromaDB. Audit zůstává aktivní a nálezy zůstávají viditelné. Nejsou přidána `ignore-vuln`,
 `continue-on-error` ani VEX tvrzení o nezasaženém produktu.
 
 Před sloučením je potřeba doložit skutečný lokální profil a rozhodnout o zbývajícím

@@ -104,8 +104,13 @@ need that separate service to be made safely reachable again.
 
 ## Audit status and the next decision
 
-This change preserves `requirements.txt` and `.github/workflows/pip-audit.yml`.
-Auditing stays enabled and findings remain visible. No `ignore-vuln`,
+The loopback-port change itself preserved `requirements.txt` and the audit workflow.
+The separate PR #1 dependency refresh on **2026-11-08** updates five other
+flagged packages and adds an independent audit of the exact Linux lock.
+An audit of all 124 locked packages with pip-audit 2.10.1 then reports five
+entries in ChromaDB 1.5.9 only (the four CVEs listed above, including one duplicate).
+This is a package/version audit, not exploitation testing or approval of the
+residual ChromaDB risk. Auditing stays enabled and findings remain visible. No `ignore-vuln`,
 `continue-on-error`, or VEX assertion of an unaffected product is introduced.
 
 Before merging, establish the actual local deployment profile and decide how to

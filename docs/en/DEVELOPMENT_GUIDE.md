@@ -230,10 +230,23 @@ configured. Treat their findings as evidence to investigate; passing Python
 tests does not resolve a dependency vulnerability. Do not disable or weaken
 checks to make a change appear healthy.
 
-Version pinning and lockfile adoption remain separate, reviewed dependency work.
-A platform-specific or locally generated lockfile is not automatically portable
-or approved. Verify consistency, supported Python/OS, clean installation,
-regression behavior and an update policy before adopting it.
+`requirements.txt` pins direct dependencies and four explicit security pins for
+transitive/build packages. Linux CI uses `requirements-linux-py311.lock.txt`
+(Ubuntu 24.04, Python 3.11) in a fresh virtual environment. The lock is not a
+Windows installation file. `python -B scripts/check_dependency_lock.py`, run
+from `rag_api_project/`, checks that all direct/security pins match the lock.
+
+When changing versions, update both manifests and verify a clean installation,
+`pip check`, the full regression suite and both dependency audits. The audits
+run independently: one resolves `requirements.txt`; the other checks the exact
+Linux lock, including its transitive packages. Findings still fail CI.
+
+The **Generate Linux Python Lock** workflow can be dispatched on the dependency
+branch to regenerate the snapshot in a clean environment. Its verification job
+downloads that generated artifact into a second clean environment and runs the
+tests there. Review and commit the artifact through Git; the workflow does not
+write to branches. Pinning ChromaDB 1.5.9 does not fix its known vulnerabilities
+or grant a risk exception; see [CHROMA_SECURITY.md](CHROMA_SECURITY.md).
 
 Before recommending or running `python -m scripts.ingest`, explain that it
 **deletes and recreates** the configured Chroma collection. Follow the backup,
