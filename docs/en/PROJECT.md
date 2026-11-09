@@ -166,7 +166,7 @@ From `rag_api_project/`:
 python -m pytest -q tests
 ~~~
 
-Verified run for **commit `7081599`, 2026-11-08**: **223 passed in 5.65s** on Ubuntu / Python 3.11 ([GitHub Actions run](https://github.com/jyenten/local_rag_api/actions/runs/42482651938)). This dated test result follows the BM25 initialization token-reuse change; it does not establish improved retrieval quality or end-to-end latency and remains separate from real-corpus retrieval evaluation. Historical local runs remain in the [learning log](LEARNING_LOG.md).
+Verified run for **commit `ce9a088`, 2026-11-08**: **223 passed in 7.62s** on Ubuntu / Python 3.11 ([GitHub Actions run](https://github.com/jyenten/local_rag_api/actions/runs/42511536430)). This dated result covers `main` after the BM25 initialization token-reuse change, the loopback-only Compose port binding and documentation updates; it does not establish improved retrieval quality, end-to-end latency or security and remains separate from real-corpus retrieval evaluation. Historical local runs remain in the [learning log](LEARNING_LOG.md).
 
 BM25 tests use synthetic Chroma fixtures and cover pagination, ranking, deterministic tie-breaking, metadata alignment, invalid queries and records, and malformed batches.
 
