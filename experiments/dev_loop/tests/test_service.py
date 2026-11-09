@@ -146,3 +146,37 @@ def test_powershell_launcher_handles_profile_path_spaces_without_printing_secret
     assert result.returncode == 0, result.stderr
     assert '"configuration_valid": true' in result.stdout
     assert '"runtime_readiness": "not_checked"' in result.stdout
+
+
+def test_select_reviewed_task_preserves_paths_limits_and_rejects_unavailable_source(configured, tmp_path, monkeypatch):
+    from experiments.dev_loop.citations import task
+    from experiments.dev_loop.real_bm25 import __main__ as bm25
+    from experiments.dev_loop.registered_tasks import CITATIONS
+    monkeypatch.setattr(bm25, 'read_source', lambda path: ('public original', 'a' * 40))
+    monkeypatch.setattr(task, 'read_source', lambda path: ('public retrieval', 'a' * 40))
+    assert service.main(['init', '--config', str(configured.config), '--replace',
+        '--runs-root', str(configured.run_dir.parent), '--allow-run', configured.run_dir.name,
+        '--source-repo', str(tmp_path / 'source'), '--jobs-root', str(tmp_path / 'jobs')]) == 0
+    before = service.read_profile(configured.config)
+    assert service.main(['select-task', CITATIONS, '--config', str(configured.config)]) == 0
+    after = service.read_profile(configured.config)
+    assert after == {**before, 'schema_version': 2, 'task_id': CITATIONS}
+    assert service.service_arguments(after)[-2:] == ['--task', CITATIONS]
+    snapshot = configured.config.read_bytes()
+    def fail(path): raise InfrastructureError('Source changed')
+    monkeypatch.setattr(task, 'read_source', fail)
+    with pytest.raises(SystemExit): service.main(['select-task', CITATIONS, '--config', str(configured.config)])
+    assert configured.config.read_bytes() == snapshot
+
+
+def test_powershell_launcher_accepts_v2_profile_without_running_a_model(configured, tmp_path):
+    executable = shutil.which('pwsh') or shutil.which('powershell')
+    if not executable:
+        pytest.skip('PowerShell v2 launcher is exercised by Windows CI')
+    profile = service.read_profile(configured.config)
+    profile.update(schema_version=2, task_id='bm25-tokenize-once')
+    configured.config.write_text(json.dumps(profile), encoding='utf-8')
+    script = Path(service.__file__).with_name('Start-DevLoop.ps1')
+    result = subprocess.run([executable, '-NoProfile', '-NonInteractive', '-File', str(script),
+        '-Action', 'check', '-ConfigPath', str(configured.config)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0 and '"configuration_valid": true' in result.stdout, result.stderr

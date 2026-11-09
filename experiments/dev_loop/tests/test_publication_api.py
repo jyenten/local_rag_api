@@ -101,7 +101,8 @@ def test_preview_uses_validated_plan_without_github_or_docker(tmp_path, monkeypa
     calls = []
     def load(path):
         calls.append(path)
-        return SimpleNamespace(plan=lambda: {'publish_requested': False, 'merge_allowed': False})
+        return SimpleNamespace(task=SimpleNamespace(task_id=api.TASK_ID),
+                               plan=lambda: {'publish_requested': False, 'merge_allowed': False})
     monkeypatch.setattr(api, 'load_bundle', load)
     c = client(tmp_path, lambda path: pytest.fail('Preview must not publish'))
     response = post(c, path='/publications/preview')

@@ -12,6 +12,7 @@ from uuid import UUID
 
 from .adapters import LAB, InfrastructureError
 from .real_jobs import read_json, write_json
+from .registered_tasks import BM25, REAL_TASK_IDS, get_registered_task
 
 DEFAULT_CONFIG = LAB / '.runs' / 'service.json'
 SERVICE = 'local-rag-dev-loop'
@@ -24,10 +25,13 @@ def absolute(path):
 
 
 def validate_profile(data):
-    if not isinstance(data, dict) or set(data) != FIELDS:
+    expected_fields = FIELDS | {'task_id'} if isinstance(data, dict) and data.get('schema_version') == 2 else FIELDS
+    if not isinstance(data, dict) or set(data) != expected_fields:
         raise ValueError('Profile has unknown/missing fields; credentials do not belong in this file')
-    if type(data['schema_version']) is not int or data['schema_version'] != 1 or data['service'] != SERVICE:
+    if type(data['schema_version']) is not int or data['schema_version'] not in (1, 2) or data['service'] != SERVICE:
         raise ValueError('Unknown service profile')
+    if data.get('task_id', BM25) not in REAL_TASK_IDS:
+        raise ValueError('Unknown host-selected real task')
     for key in ('python_executable', 'runs_root'):
         if not isinstance(data[key], str) or not Path(data[key]).is_absolute():
             raise ValueError('Profile paths must be absolute')
@@ -44,7 +48,7 @@ def validate_profile(data):
         raise ValueError('Profile new-job allowance must be 1-20')
     source, jobs = data['source_repo'], data['jobs_root']
     if source is None:
-        if jobs is not None or data['max_new_jobs'] != 1:
+        if jobs is not None or data['max_new_jobs'] != 1 or data.get('task_id', BM25) != BM25:
             raise ValueError('Real-job settings require an explicitly configured source repository')
     elif (not isinstance(source, str) or not Path(source).is_absolute()
           or not isinstance(jobs, str) or not Path(jobs).is_absolute()):
@@ -58,14 +62,15 @@ def read_profile(path):
 
 def inspect_inputs(profile):
     from .publish import load_bundle
-    from .real_bm25.__main__ import read_source
 
     for run_id in profile['allowed_run_ids']:
         load_bundle(Path(profile['runs_root']) / run_id)
     revision = None
     if profile['source_repo'] is not None:
-        _, revision = read_source(Path(profile['source_repo']))
+        task = get_registered_task(profile.get('task_id', BM25))
+        _, revision = task.module.read_source(Path(profile['source_repo']))
     return {'configuration_valid': True, 'registered_runs': len(profile['allowed_run_ids']),
+            'task_id': profile.get('task_id', BM25),
             'real_jobs_enabled': profile['source_repo'] is not None, 'source_commit': revision,
             'listen_address': '127.0.0.1', 'port': profile['port'],
             'max_new_jobs_per_process': profile['max_new_jobs'], 'runtime_readiness': 'not_checked',
@@ -80,6 +85,8 @@ def service_arguments(profile):
     if profile['source_repo'] is not None:
         args += ['--source-repo', profile['source_repo'], '--jobs-root', profile['jobs_root'],
                  '--max-new-jobs', str(profile['max_new_jobs'])]
+        if profile.get('task_id', BM25) != BM25:
+            args += ['--task', profile['task_id']]
     return args
 
 
@@ -93,11 +100,15 @@ def main(argv=None):
     init.add_argument('--source-repo', type=Path)
     init.add_argument('--jobs-root', type=Path)
     init.add_argument('--max-new-jobs', type=int, default=1)
+    init.add_argument('--task', choices=REAL_TASK_IDS, default=BM25)
     init.add_argument('--port', type=int, default=8766)
     init.add_argument('--replace', action='store_true', help='Replace an existing valid service profile explicitly')
     for name in ('check', 'start'):
         child = actions.add_parser(name)
         child.add_argument('--config', type=Path, default=DEFAULT_CONFIG)
+    select = actions.add_parser('select-task', help='Explicitly select a reviewed task, preserving paths and limits')
+    select.add_argument('task_id', choices=REAL_TASK_IDS)
+    select.add_argument('--config', type=Path, default=DEFAULT_CONFIG)
     args = parser.parse_args(argv)
     try:
         if args.action == 'init':
@@ -113,6 +124,7 @@ def main(argv=None):
                 'jobs_root': absolute(args.jobs_root or args.runs_root.parent / 'n8n-real-jobs')
                              if args.source_repo else None,
                 'max_new_jobs': args.max_new_jobs, 'port': args.port,
+                **({'schema_version': 2, 'task_id': args.task} if args.task != BM25 else {}),
             })
             if args.source_repo is None and args.jobs_root is not None:
                 raise ValueError('--jobs-root requires --source-repo')
@@ -124,6 +136,13 @@ def main(argv=None):
             print(json.dumps({'configured': True, 'config': str(config), 'credentials_stored': False}))
             return 0
         profile = read_profile(args.config)
+        if args.action == 'select-task':
+            profile = validate_profile({**profile, 'schema_version': 2, 'task_id': args.task_id})
+            inspect_inputs(profile)
+            write_json(args.config, profile)
+            print(json.dumps({'configured': True, 'task_id': args.task_id, 'credentials_stored': False,
+                              'merge_allowed': False}))
+            return 0
         if args.action == 'check':
             print(json.dumps(inspect_inputs(profile), indent=2))
             return 0

@@ -14,10 +14,11 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from .adapters import InfrastructureError
-from .publish import REPOSITORY, TARGET, load_bundle
+from .publish import REPOSITORY, load_bundle
 from .real_bm25.__main__ import digest, read_source
 from .real_jobs import NewJobLimit
 from .workflow import JobConflict
+from .registered_tasks import BM25, REAL_TASK_IDS, get_registered_task
 
 TASK_ID = 'bm25-tokenize-once'
 LOGGER = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ LOGGER = logging.getLogger(__name__)
 class ControlRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     action: Literal['catalog', 'generate', 'status', 'report', 'publish']
-    task_id: Literal['bm25-tokenize-once'] = TASK_ID
+    task_id: Literal['bm25-tokenize-once', 'retrieval-citation-provenance'] = TASK_ID
     request_id: UUID | None = None
 
 
@@ -47,74 +48,89 @@ class ControlPanel:
         self.publisher, self.jobs = publisher, jobs
 
     def envelope(self, body, status, **values):
-        return {'status': status, 'action': body.action, 'task_id': TASK_ID,
+        return {'status': status, 'action': body.action, 'task_id': body.task_id,
                 'request_id': str(body.request_id) if body.request_id else None,
                 'requires_approval': False, 'merge_allowed': False, **values}
 
     def blocked(self, body, code):
         return self.envelope(body, 'blocked', error_code=code)
 
-    def directory(self, request_id):
+    def directory(self, request_id, task_id=TASK_ID):
         if request_id in self.registered:
-            return self.runs_root / request_id, False
+            directory = self.runs_root / request_id
+            if load_bundle(directory).task.task_id != task_id:
+                raise FileNotFoundError('Run belongs to another registered task')
+            return directory, False
         if self.jobs is None:
             raise FileNotFoundError('Unknown registered run or job')
-        self.jobs.status(request_id)  # Validate durable identity before reading any artifact.
+        state = self.jobs.status(request_id)  # Validate durable identity before reading any artifact.
+        if state['task_id'] != task_id:
+            raise FileNotFoundError('Job belongs to another registered task')
         return self.jobs.paths(request_id)[2], True
 
-    def report(self, request_id):
-        directory, _ = self.directory(request_id)
+    def report(self, request_id, task_id=TASK_ID):
+        directory, _ = self.directory(request_id, task_id)
         bundle = load_bundle(directory)
+        task = bundle.task
         data = bundle.report
         comparison = data['comparison']
         # Derive diff from validated public artifacts, never trust raw report HTML/logs.
         patch = ''.join(difflib.unified_diff(
             bundle.original.splitlines(True), bundle.candidate.splitlines(True),
-            fromfile='before/' + TARGET, tofile='after/' + TARGET))
-        return {'request_id': request_id, 'task_id': TASK_ID, 'repository': REPOSITORY,
-                'status': 'review_ready', 'allowed_files': [TARGET],
+            fromfile='before/' + task.target, tofile='after/' + task.target))
+        for name, source in task.fixed_files.items():
+            patch += ''.join(difflib.unified_diff([], source.splitlines(True), fromfile='/dev/null', tofile='after/' + name))
+        return {'request_id': request_id, 'task_id': task_id, 'repository': REPOSITORY,
+                'status': 'review_ready', 'allowed_files': task.allowed_files,
                 'source_commit': data['source_commit'], 'source_sha256': digest(bundle.original),
                 'candidate_sha256': digest(bundle.candidate), 'checker_isolation': 'docker',
-                'checker_image': data['runner_image'], 'regression_test_count': 68,
-                'comparison': {
-                    **{key: comparison[key] for key in ('document_count', 'paired_trials',
-                                                       'search_results_equal', 'single_pass_observed')},
-                    **{key: {side: comparison[key][side] for side in ('before', 'after')}
-                       for key in ('median_init_ms', 'init_tokenize_calls')}},
+                'checker_image': data['runner_image'], 'regression_test_count': task.manifest['regression_test_count'],
+                'comparison': task.public_comparison(comparison),
+                **({'fixed_files_sha256': data['fixed_files_sha256']} if task.fixed_files else {}),
                 'diff': patch, 'committed': False, 'applied_to_rag': False,
                 'ci_status': 'not_checked', 'merge_allowed': False}
 
     def preview(self, body):
         if body.action == 'catalog':
-            return self.envelope(body, 'catalog', tasks=[{
-                'task_id': TASK_ID, 'description': 'Historical BM25 tokenize-once optimization',
-                'allowed_files': [TARGET], 'allowed_run_ids': sorted(self.registered),
-                'generation_configured': self.jobs is not None,
-                'generation_readiness': 'requires_source_and_github_preflight',
-                'max_attempts': 3, 'merge_allowed': False}],
+            registered = {run_id: load_bundle(self.runs_root / run_id).task.task_id for run_id in self.registered}
+            tasks = []
+            for task_id in REAL_TASK_IDS:
+                task = get_registered_task(task_id)
+                tasks.append({'task_id': task_id, 'description': task.description,
+                    'allowed_files': task.allowed_files,
+                    'allowed_run_ids': sorted(key for key, value in registered.items() if value == task_id),
+                    'generation_configured': self.jobs is not None and self.jobs.task_id == task_id,
+                    'generation_readiness': 'requires_source_and_github_preflight',
+                    'max_attempts': 3, 'merge_allowed': False})
+            return self.envelope(body, 'catalog', tasks=tasks,
                 real_job=self.jobs.capabilities() if self.jobs else None)
         if body.request_id is None:
             raise HTTPException(422, 'Choose an exact run/job UUID')
         request_id = str(body.request_id)
         if body.action == 'status':
             if request_id in self.registered:
-                data = self.report(request_id)
+                data = self.report(request_id, body.task_id)
                 return self.envelope(body, 'view', result={key: data[key] for key in (
                     'request_id', 'task_id', 'status', 'candidate_sha256', 'checker_isolation',
                     'ci_status', 'merge_allowed')})
-            if self.jobs is None:
+            if self.jobs is None or self.jobs.task_id != body.task_id:
                 raise FileNotFoundError('Unknown job')
             return self.envelope(body, 'view', result=self.jobs.status(request_id))
         if body.action == 'report':
-            return self.envelope(body, 'view', result=self.report(request_id))
+            return self.envelope(body, 'view', result=self.report(request_id, body.task_id))
 
-        plan = {'action': body.action, 'task_id': TASK_ID, 'request_id': request_id,
-                'repository': REPOSITORY, 'allowed_files': [TARGET],
+        task = get_registered_task(body.task_id)
+        plan = {'action': body.action, 'task_id': body.task_id, 'request_id': request_id,
+                'repository': REPOSITORY, 'allowed_files': task.allowed_files,
                 'max_attempts': 3, 'checker_isolation': 'docker', 'merge_allowed': False}
+        if task.fixed_files:
+            plan.update(worker_allowed_files=[task.target], editable_methods=task.manifest['allowed_methods'],
+                        fixed_files_sha256={name: digest(source) for name, source in task.fixed_files.items()},
+                        acceptance_test_count=task.manifest['regression_test_count'])
         if body.action == 'generate':
             if request_id in self.registered:
                 return self.blocked(body, 'SAVED_RUN_CANNOT_BE_REGENERATED')
-            if self.jobs is None:
+            if self.jobs is None or self.jobs.task_id != body.task_id:
                 return self.blocked(body, 'NEW_JOBS_NOT_CONFIGURED')
             if self.jobs.lock.locked():
                 return self.blocked(body, 'TASK_ACTIVE')
@@ -130,7 +146,8 @@ class ControlPanel:
                 if self.jobs.used >= self.jobs.max_new_jobs:
                     return self.blocked(body, 'NEW_JOB_ALLOWANCE_CONSUMED')
                 try:
-                    current, revision = read_source(self.jobs.source_repo)
+                    current, revision = (read_source(self.jobs.source_repo) if body.task_id == BM25 else
+                                         self.jobs.read_source())
                 except (InfrastructureError, OSError, ValueError) as exc:
                     LOGGER.warning('Control source check stopped: %s', exc)
                     return self.blocked(body, 'SOURCE_CHANGED')
@@ -145,7 +162,7 @@ class ControlPanel:
                         new_jobs_remaining=self.jobs.max_new_jobs - self.jobs.used,
                         cached_generation=state_dir.exists(), publication='separate_approval_required')
         else:
-            directory, managed = self.directory(request_id)
+            directory, managed = self.directory(request_id, body.task_id)
             bundle = load_bundle(directory)
             if managed:
                 state = self.jobs.status(request_id)
@@ -155,7 +172,7 @@ class ControlPanel:
                         source_sha256=digest(bundle.original), model_invocations=0)
         return self.envelope(body, 'approval_required', requires_approval=True,
                              plan=plan, plan_sha256=plan_hash(plan),
-                             result=self.report(request_id) if body.action == 'publish' else None)
+                             result=self.report(request_id, body.task_id) if body.action == 'publish' else None)
 
     def execute(self, body):
         if body.approved is not True:
@@ -169,13 +186,13 @@ class ControlPanel:
         if body.action == 'generate':
             result = self.jobs.generate(request_id)
         else:
-            directory, managed = self.directory(request_id)
+            directory, managed = self.directory(request_id, body.task_id)
             if managed:
                 result = self.jobs.publish_existing(request_id)
             else:
                 from .publication_api import public_receipt
 
-                result = public_receipt(self.publisher(directory), request_id)
+                result = public_receipt(self.publisher(directory), request_id, body.task_id)
         return self.envelope(body, 'completed', result=result)
 
 

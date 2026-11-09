@@ -14,7 +14,7 @@
       "parameters": {
         "authentication": "basicAuth",
         "formTitle": "Local RAG — ovládání úloh",
-        "formDescription": "catalog = seznam úloh; status = stav; report = porovnání a diff; generate = návrh bez publikace; publish = draft PR po schválení. BM25 je historický úkol; změněná baseline další generování zablokuje. Pro první kontrolu zvol catalog.",
+        "formDescription": "catalog = seznam úloh; status = stav; report = diff a důkazy; generate = návrh bez publikace; publish = draft PR po schválení. BM25 je historický; retrieval-citation-provenance opravuje přiřazení zdrojů. Pro první kontrolu zvol catalog.",
         "formFields": {
           "values": [
             {
@@ -51,6 +51,9 @@
                 "values": [
                   {
                     "option": "bm25-tokenize-once"
+                  },
+                  {
+                    "option": "retrieval-citation-provenance"
                   }
                 ]
               },
@@ -172,12 +175,12 @@
         },
         "options": {
           "formTitle": "Kontrola konkrétního plánu",
-          "formDescription": "={{ '<p>Schvaluješ pouze uvedenou akci. Generate nevytváří PR; publish znovu ověří uložený návrh a předá draft PR. Merge není povolen.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' : '') }}",
+          "formDescription": "={{ '<p>Schvaluješ pouze uvedenou akci. Generate nevytváří PR; publish znovu ověří uložený návrh a předá draft PR. Merge není povolen.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') + '</pre>' : '') }}",
           "buttonLabel": "Potvrdit rozhodnutí"
         },
         "limitWaitTime": true,
         "limitType": "afterTimeInterval",
-        "resumeAmount": 30,
+        "resumeAmount": 10,
         "resumeUnit": "minutes"
       },
       "webhookId": "820a526e-240a-4e2c-8537-4090c6064ba9"
@@ -256,7 +259,7 @@
         "operation": "completion",
         "respondWith": "text",
         "completionTitle": "Výsledek controlleru",
-        "completionMessage": "={{ '<p>Stav a ID najdeš níže. Pro další kontrolu otevři formulář znovu a zvol status nebo report se stejným UUID. Zelený HTTP uzel není schválení merge.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' : '') }}",
+        "completionMessage": "={{ '<p>Stav a ID najdeš níže. Pro další kontrolu otevři formulář znovu a zvol status nebo report se stejným UUID. Zelený HTTP uzel není schválení merge.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') + '</pre>' : '') }}",
         "options": {
           "appendAttribution": false
         }
@@ -370,7 +373,7 @@
     "executionOrder": "v1",
     "saveExecutionProgress": true,
     "saveManualExecutions": true,
-    "executionTimeout": 1200,
+    "executionTimeout": 2700,
     "timezone": "Europe/Prague"
   },
   "pinData": {},

@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $resolvedConfig = (Resolve-Path -LiteralPath $ConfigPath).Path
 $serviceProfile = Get-Content -LiteralPath $resolvedConfig -Raw | ConvertFrom-Json
-if ($serviceProfile.schema_version -ne 1 -or $serviceProfile.service -ne 'local-rag-dev-loop') {
+if ($serviceProfile.schema_version -notin @(1, 2) -or $serviceProfile.service -ne 'local-rag-dev-loop') {
     throw 'Not a dev-loop service profile. Run python -m experiments.dev_loop.service init first.'
 }
 $pythonExecutable = $serviceProfile.python_executable

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from functools import partial
 import logging
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .adapters import InfrastructureError
 from .publish import BASE, REPOSITORY, TARGET, PublicationError, load_bundle, publish
+from .registered_tasks import BM25, REAL_TASK_IDS, get_registered_task
 
 TASK_ID = 'bm25-tokenize-once'
 PORT = 8766
@@ -38,11 +40,12 @@ class JobRequest(BaseModel):
     request_id: UUID
 
 
-def public_receipt(record, run_id):
+def public_receipt(record, run_id, task_id=TASK_ID):
     """Only review metadata leaves the host: no filesystem paths or raw evidence."""
-    if (not isinstance(record, dict) or record.get('request_id') != run_id or record.get('task_id') != TASK_ID
+    task = get_registered_task(task_id)
+    if (not isinstance(record, dict) or record.get('request_id') != run_id or record.get('task_id') != task_id
             or record.get('repository') != REPOSITORY or record.get('base') != BASE
-            or record.get('allowed_files') != [TARGET]
+            or record.get('allowed_files') != task.allowed_files
             or record.get('merged') is not False or record.get('merge_allowed') is not False
             or record.get('local_source_changed') is not False
             or record.get('published_to_github') is not True
@@ -53,6 +56,12 @@ def public_receipt(record, run_id):
             'allowed_files', 'candidate_sha256', 'pull_request', 'draft', 'reused_existing_pr',
             'published_to_github', 'local_source_changed', 'merged', 'merge_allowed',
             'ci_status', 'checker_image')
+    if task.fixed_files:
+        from .real_bm25.__main__ import digest
+
+        if record.get('fixed_files_sha256') != {name: digest(source) for name, source in task.fixed_files.items()}:
+            raise PublicationError('Publisher receipt has different fixed regressions')
+        keys += ('fixed_files_sha256',)
     return {key: record[key] for key in keys}
 
 
@@ -63,6 +72,7 @@ def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None, job
     registered = frozenset(str(UUID(str(value))) for value in allowed_runs)
     if not 1 <= len(registered) <= 20:
         raise ValueError('Register between 1 and 20 exact run UUIDs on the host')
+    legacy_publisher = publisher or partial(publish, expected_task=TASK_ID)
     publisher = publisher or publish
     app = FastAPI(title='Local RAG verified publication', version='0.1.0', docs_url=None, redoc_url=None,
                   openapi_url=None)
@@ -97,7 +107,7 @@ def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None, job
     @app.get('/health')
     def health():
         # Liveness only: no run listing, account identity, credentials or readiness claim.
-        return {'status': 'ok', 'service': 'verified-publication', 'task_id': TASK_ID}
+        return {'status': 'ok', 'service': 'verified-publication', 'task_id': getattr(jobs, 'task_id', TASK_ID)}
 
     @app.get('/tasks')
     def tasks():
@@ -113,6 +123,8 @@ def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None, job
 
         @app.post('/jobs')
         def start_job(body: JobRequest):
+            if getattr(jobs, 'task_id', BM25) != BM25:
+                raise HTTPException(410, 'Use separate reviewed control actions for this registered task')
             if not lock.acquire(blocking=False):
                 raise HTTPException(409, 'A task or publication is active; inspect its status')
             try:
@@ -147,7 +159,10 @@ def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None, job
     def preview(body: PublicationRequest):
         directory = run_directory(body)
         try:
-            return load_bundle(directory).plan()
+            bundle = load_bundle(directory)
+            if bundle.task.task_id != body.task_id:
+                raise HTTPException(422, 'Run belongs to another registered task')
+            return bundle.plan()
         except FileNotFoundError as exc:
             raise HTTPException(404, 'Registered run files are unavailable') from exc
         except (InfrastructureError, OSError, ValueError) as exc:
@@ -160,7 +175,7 @@ def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None, job
         if not lock.acquire(blocking=False):
             raise HTTPException(409, 'A publication is active; do not resubmit')
         try:
-            return public_receipt(publisher(directory), str(body.run_id))
+            return public_receipt(legacy_publisher(directory), str(body.run_id))
         except FileNotFoundError as exc:
             raise HTTPException(404, 'Registered run files are unavailable') from exc
         except PublicationError as exc:
@@ -193,18 +208,21 @@ def main(argv=None):
     parser.add_argument('--jobs-root', type=Path, help='Separate host-owned real-job state and artifacts')
     parser.add_argument('--max-new-jobs', type=int, default=1,
                         help='New real jobs allowed per service session (1-20, default 1)')
+    parser.add_argument('--task', choices=REAL_TASK_IDS, default=BM25,
+                        help='Explicit host-selected real task; HTTP cannot change it')
     args = parser.parse_args(argv)
     if not 1024 <= args.port <= 65535:
         parser.error('--port must be between 1024 and 65535')
-    if args.source_repo is None and (args.jobs_root is not None or args.max_new_jobs != 1):
-        parser.error('--jobs-root/--max-new-jobs require --source-repo')
+    if args.source_repo is None and (args.jobs_root is not None or args.max_new_jobs != 1 or args.task != BM25):
+        parser.error('--jobs-root/--max-new-jobs/--task require --source-repo')
     try:
         jobs = None
         if args.source_repo is not None:
             from .real_jobs import RealJobs
 
+            options = {} if args.task == BM25 else {'task_id': args.task}
             jobs = RealJobs(args.source_repo, args.jobs_root or args.runs_root.parent / 'n8n-real-jobs',
-                            args.max_new_jobs)
+                            args.max_new_jobs, **options)
         app = create_app(args.runs_root, os.environ.get('DEV_LOOP_TOKEN', ''), args.allow_run, jobs=jobs)
         for run_id in args.allow_run:
             load_bundle(args.runs_root / str(run_id))

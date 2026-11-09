@@ -103,4 +103,4 @@ def test_report_and_approval_render_untrusted_code_as_text_with_readable_diff():
     for expression in expressions:
         rendered = js(expression, data)
         assert '<script>' not in rendered and '&lt;script&gt;' in rendered
-        assert 'Diff před / po' in rendered and '\n+ safe code\n' in rendered
+        assert 'Diff před / po' in rendered and '<br>+ safe code<br>' in rendered

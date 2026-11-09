@@ -10,11 +10,12 @@ plan and collects a decision. LangGraph controls implementation and at most two
 repairs; independent checks run in offline Docker. Publication is a separately
 approved action. The owner continues to approve merges.
 
-This delivery supports the registered `bm25-tokenize-once` task. It is completed
-in current `main`: historical reports remain inspectable, but source/remote
-preflight rejects new generation against changed baselines without model calls
-or allowance consumption. Citation repair needs its own reviewed manifest and
-checker in a subsequent PR. No arbitrary prompts, shell or remote registration.
+The catalog contains historical `bm25-tokenize-once` and registered
+[`retrieval-citation-provenance`](DEV_LOOP_CITATION_TASK.md). BM25 is completed
+in `main`; source/remote preflight blocks generation against changed baselines.
+The host profile explicitly selects the enabled new-job type; the n8n dropdown
+cannot enable it. No arbitrary prompts, shell or remote registration. Activating
+a reviewed task is a one-time setup; routine operations then use the form.
 
 ## Update the service once
 

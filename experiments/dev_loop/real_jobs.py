@@ -13,6 +13,7 @@ from .adapters import InfrastructureError
 from .publish import REPOSITORY, REPOSITORY_ID, GitHub, check_revision, commit_sha, publish
 from .real_bm25.__main__ import MANIFEST, digest, read_source, run
 from .workflow import JobConflict
+from .registered_tasks import BM25, get_registered_task
 
 TASK_ID = 'bm25-tokenize-once'
 MAX_STATE_BYTES = 1024 * 1024
@@ -54,21 +55,29 @@ def write_json(path, data):
 
 class RealJobs:
     def __init__(self, source_repo, jobs_root, max_new_jobs=1, *, generator=None, publisher=None,
-                 preflight=None):
+                 preflight=None, task_id=BM25):
         if type(max_new_jobs) is not int or not 1 <= max_new_jobs <= 20:
             raise ValueError('Allow between 1 and 20 new jobs per service session')
         self.source_repo = Path(source_repo).absolute()
+        self.task = get_registered_task(task_id)
+        self.task_id = task_id
         self.root = Path(jobs_root).absolute()
         if any(p.is_symlink() for p in (self.root, *self.root.parents)):
             raise ValueError('Job root must not use symlinks')
-        self.original, self.revision = read_source(self.source_repo)
+        self.original, self.revision = self.read_source()
         self.max_new_jobs, self.used = max_new_jobs, 0
-        self.generator, self.publisher = generator or run, publisher or publish
+        self.generator = generator or (run if task_id == BM25 else self.task.module.run)
+        self.publisher = publisher or publish
         self.preflight = preflight or self.github_preflight
         self.lock = threading.Lock()
 
+    def read_source(self):
+        reader = read_source if self.task_id == BM25 else self.task.module.read_source
+        return reader(self.source_repo)
+
     def github_preflight(self):
-        github = GitHub(self.source_repo)
+        github = (GitHub(self.source_repo) if self.task_id == BM25 else
+                  GitHub(self.source_repo, task_id=self.task_id))
         if github.api('GET').get('id') != REPOSITORY_ID:
             raise InfrastructureError('Unexpected GitHub repository identity')
         base = commit_sha(github.api('GET', 'git/ref/heads/main')['object']['sha'])
@@ -77,8 +86,8 @@ class RealJobs:
             check_revision(github, self.revision, self.original)
 
     def capabilities(self):
-        return {'task_id': TASK_ID, 'operations': ['run-and-publish'],
-                'source_commit': self.revision, 'allowed_files': [MANIFEST['target']],
+        return {'task_id': self.task_id, 'operations': ['generate', 'publish-existing'],
+                'source_commit': self.revision, 'allowed_files': self.task.allowed_files,
                 'max_attempts': 3, 'max_new_jobs_this_session': self.max_new_jobs,
                 'new_jobs_remaining': self.max_new_jobs - self.used, 'merge_allowed': False}
 
@@ -91,7 +100,7 @@ class RealJobs:
         return request_id, directory, run_dir
 
     def identity(self, request_id):
-        return {'request_id': request_id, 'task_id': TASK_ID, 'repository': REPOSITORY,
+        return {'request_id': request_id, 'task_id': self.task_id, 'repository': REPOSITORY,
                 'source_commit': self.revision, 'source_sha256': digest(self.original)}
 
     def status(self, request_id):
@@ -102,27 +111,26 @@ class RealJobs:
             raise JobConflict('Job ID belongs to a different source revision')
         return self.safe_state(read_json(directory / 'state.json'), request_id)
 
-    @staticmethod
-    def safe_state(state, request_id):
+    def safe_state(self, state, request_id):
         if state.get('publication') is not None:
             from .publication_api import public_receipt
 
-            state = {**state, 'publication': public_receipt(state['publication'], request_id)}
+            state = {**state, 'publication': public_receipt(state['publication'], request_id, self.task_id)}
         if state.get('status') == 'pr_ready' and state.get('publication') is None:
             raise JobConflict('Completed job is missing a publication receipt')
         allowed = ('status', 'generation_status', 'attempts', 'generation_cached', 'publication',
                    'publication_status', 'error_code', 'model_usage_measured', 'worker_invocations')
-        return {'request_id': request_id, 'task_id': TASK_ID, 'merge_allowed': False,
+        return {'request_id': request_id, 'task_id': self.task_id, 'merge_allowed': False,
                 'merged': False, 'local_source_changed': False,
                 **{key: state[key] for key in allowed if key in state}}
 
     def cached_report(self, path, request_id):
         report = read_json(path)
-        expected = {'request_id': request_id, 'task_id': TASK_ID,
+        expected = {'request_id': request_id, 'task_id': self.task_id,
                     'source_repository': REPOSITORY, 'source_commit': self.revision,
-                    'source_sha256': digest(self.original), 'backend': 'codex-real-bm25-docker',
+                    'source_sha256': digest(self.original), 'backend': self.task.backend,
                     'measurement': 'live-codex-real-repository',
-                    'reviewed_source_commit': MANIFEST['source_commit'], 'target': MANIFEST['target'],
+                    'reviewed_source_commit': self.task.manifest['source_commit'], 'target': self.task.target,
                     'checker_isolation': 'docker', 'committed': False, 'applied_to_rag': False}
         if any(report.get(key) != value for key, value in expected.items()):
             raise JobConflict('Saved generation belongs to a different task or source')
@@ -159,7 +167,7 @@ class RealJobs:
         else:
             if self.used >= self.max_new_jobs:
                 raise NewJobLimit('No new jobs remain in this service session')
-            current, revision = read_source(self.source_repo)
+            current, revision = self.read_source()
             if current != self.original or revision != self.revision:
                 raise JobConflict('Source changed since registration; restart only after reviewing it')
             # Refuse an already merged/changed baseline before spending a model invocation.
@@ -200,7 +208,7 @@ class RealJobs:
         try:
             from .publication_api import public_receipt
 
-            state['publication'] = public_receipt(self.publisher(run_dir), request_id)
+            state['publication'] = public_receipt(self.publisher(run_dir), request_id, self.task_id)
             state.update(status='pr_ready', publication_status='published')
         except (InfrastructureError, OSError, ValueError, KeyError, TypeError) as exc:
             LOGGER.warning('Real publication stopped: %s', exc)

@@ -9,11 +9,12 @@ existující controller na portu 8766. n8n vybírá akci, zobrazí plán a přij
 rozhodnutí; LangGraph řídí implementaci a nejvýše dvě opravy. Nezávislé testy běží
 v offline Dockeru. Publikace je samostatná schválená akce, merge zůstává na člověku.
 
-První dodávka podporuje registrovanou `bm25-tokenize-once`. V aktuálním `main` je
-již dokončená: historický report lze zobrazit, další generování proti změněnému
-zdroji/remote preflight odmítne bez modelového volání a spotřeby allowance.
-Oprava citací potřebuje vlastní přezkoumaný manifest a checker v dalším PR.
-Není zde libovolný prompt, shell ani vzdálené přidávání úloh.
+Katalog obsahuje historickou `bm25-tokenize-once` a registrovanou
+[`retrieval-citation-provenance`](DEV_LOOP_CITATION_TASK.md). BM25 je v `main`
+dokončený; další generování proti změněnému zdroji preflight odmítne. Aktivní typ
+nových jobů výslovně volí hostitelský profil; nabídka v n8n jej sama nezapne.
+Není zde libovolný prompt, shell ani vzdálené přidávání úloh. Registrace nové úlohy
+je jednorázové nastavení podle odkazovaného návodu, běžné akce potom běží z formuláře.
 
 ## Jednorázové aktualizování služby
 
