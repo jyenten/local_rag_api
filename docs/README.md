@@ -27,6 +27,7 @@ Příručky mají samostatný obsah kapitol a závěrečný odkaz nahoru. / Guid
 | Plán fází / Phase plan | [Česky](cs/ROADMAP.md#cz) | [English](en/ROADMAP.md#en) |
 | Vývoj a revize / Development and review | [Česky](cs/DEVELOPMENT_GUIDE.md#cz) | [English](en/DEVELOPMENT_GUIDE.md#en) |
 | Experiment n8n / LangGraph / Codex | [Česky](cs/DEV_LOOP.md#cz) | [English](en/DEV_LOOP.md#en) |
+| Ovládací formulář n8n / n8n operator form | [Česky](cs/DEV_LOOP_N8N_CONTROL.md) | [English](en/DEV_LOOP_N8N_CONTROL.md) |
 | Deník učení / Learning log | [Česky](cs/LEARNING_LOG.md#cz) | [English](en/LEARNING_LOG.md#en) |
 
 ## Pravidla agentů / Agent rules

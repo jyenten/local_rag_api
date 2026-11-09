@@ -128,17 +128,27 @@ class RealJobs:
             raise JobConflict('Saved generation belongs to a different task or source')
         return report
 
-    def execute(self, request_id):
+    def generate(self, request_id):
+        """Generate/check only. Publication requires a separate reviewed action."""
+        return self.execute(request_id, publish_result=False)
+
+    def publish_existing(self, request_id):
+        """Never claim a new job or invoke the model from the publication action."""
+        return self.execute(request_id, existing_only=True)
+
+    def execute(self, request_id, *, publish_result=True, existing_only=False):
         if not self.lock.acquire(blocking=False):
             raise JobConflict('A real task is active; inspect its status instead of resubmitting')
         try:
-            return self._execute(request_id)
+            return self._execute(request_id, publish_result=publish_result, existing_only=existing_only)
         finally:
             self.lock.release()
 
-    def _execute(self, request_id):
+    def _execute(self, request_id, *, publish_result=True, existing_only=False):
         request_id, directory, run_dir = self.paths(request_id)
         cached = directory.exists()
+        if existing_only and not cached:
+            raise FileNotFoundError('Unknown real-task job; publication cannot start generation')
         if cached:
             # A crash before result.json is not permission to call the model again.
             state = self.status(request_id)
@@ -180,6 +190,10 @@ class RealJobs:
                  'worker_invocations': len(report.get('worker_attempts', []))}
         if report['status'] != 'review_ready':
             state.update(status='generation_failed', publication_status='not_attempted')
+            write_json(directory / 'state.json', state)
+            return self.safe_state(state, request_id)
+        if not publish_result:
+            state.update(status='review_ready', publication_status='awaiting_approval')
             write_json(directory / 'state.json', state)
             return self.safe_state(state, request_id)
         write_json(directory / 'state.json', state)

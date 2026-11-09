@@ -1,5 +1,8 @@
 # Publikování ověřených běhů z n8n
 
+Pro nové ovládání používej [formulář s odděleným schválením](DEV_LOOP_N8N_CONTROL.md).
+Tento dokument zachovává původní kompatibilní workflow; BM25 úloha je již dokončená.
+
 [English](../en/DEV_LOOP_N8N_PUBLICATION.md) · [Vývojová smyčka](DEV_LOOP.md)
 
 Tato integrace publikuje **existující úspěšný skutečný BM25 běh**. n8n vybere jeho

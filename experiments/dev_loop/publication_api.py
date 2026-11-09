@@ -175,6 +175,9 @@ def create_app(runs_root: Path, token: str, allowed_runs, *, publisher=None, job
         finally:
             lock.release()
 
+    from .control_api import install_control_routes
+
+    install_control_routes(app, runs_root, registered, publisher, jobs, lock)
     return app
 
 

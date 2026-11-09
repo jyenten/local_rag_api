@@ -1,5 +1,8 @@
 # Publish verified runs from n8n
 
+For new operations use the [form with separate approval](DEV_LOOP_N8N_CONTROL.md).
+This document retains the original compatible workflow; the BM25 task is completed.
+
 [Česky](../cs/DEV_LOOP_N8N_PUBLICATION.md) · [Development loop](DEV_LOOP.md)
 
 This integration publishes an **existing successful real-BM25 run**. n8n chooses
