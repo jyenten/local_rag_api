@@ -1,10 +1,11 @@
-// Import into https://dbdiagram.io : graphical relational model, 7 tables.
-// The SQL schema is authoritative for CHECK constraints and composite FKs.
+// Úplný sedmitabulkový relační model pro dbdiagram.io.
+// Logické typy a atributy odpovídají 01_schema.sql. SQL je autoritou pro CHECK,
+// nullable composite FK a výpočet reciprocal_rank.
 Table school_rag.documents {
   document_id bigint [pk, increment]
   source_filename text [unique, not null]
   file_sha256 char(64)
-  registered_at timestamptz
+  registered_at timestamptz [not null]
 }
 Table school_rag.evaluation_datasets {
   dataset_id bigint [pk, increment]
@@ -12,8 +13,8 @@ Table school_rag.evaluation_datasets {
   source_path text [not null]
   source_git_blob_sha char(40) [not null]
   source_commit_sha char(40) [not null]
-  imported_at timestamptz
-  indexes {(dataset_name,source_git_blob_sha) [unique]}
+  imported_at timestamptz [not null]
+  indexes {(dataset_name, source_git_blob_sha) [unique]}
 }
 Table school_rag.evaluation_questions {
   question_id bigint [pk, increment]
@@ -21,16 +22,16 @@ Table school_rag.evaluation_questions {
   external_question_id text [not null]
   topic text [not null]
   question_text text [not null]
-  indexes {(dataset_id,external_question_id) [unique]}
+  indexes {(dataset_id, external_question_id) [unique]}
 }
 Table school_rag.gold_evidence {
   evidence_id bigint [pk, increment]
   question_id bigint [not null]
   document_id bigint [not null]
-  evidence_ordinal int [not null]
-  pages int[]
-  contains_any text[]
-  indexes {(question_id,evidence_ordinal) [unique]}
+  evidence_ordinal integer [not null]
+  page_number integer [not null]
+  fragment text [not null]
+  indexes {(question_id, evidence_ordinal, document_id, page_number, fragment) [unique]}
 }
 Table school_rag.indexing_runs {
   indexing_run_id bigint [pk, increment]
@@ -38,9 +39,10 @@ Table school_rag.indexing_runs {
   embedding_model text
   corpus_snapshot_sha256 char(64)
   status text [not null]
-  started_at timestamptz
+  started_at timestamptz [not null]
   finished_at timestamptz
   chunk_count integer
+  notes text
 }
 Table school_rag.evaluation_runs {
   evaluation_run_id bigint [pk, increment]
@@ -49,10 +51,24 @@ Table school_rag.evaluation_runs {
   indexing_run_id bigint
   retriever text [not null]
   run_date date [not null]
+  executed_at timestamptz
   question_count integer [not null]
-  mrr decimal
-  record_kind text
-  source_reference text
+  retrieval_top_k integer
+  git_commit_sha char(40)
+  git_dirty boolean
+  dataset_sha256 char(64)
+  mrr numeric(8,6)
+  hit_at_1 numeric(8,6)
+  hit_at_3 numeric(8,6)
+  hit_at_5 numeric(8,6)
+  hit_at_8 numeric(8,6)
+  latency_mean_ms numeric(12,3)
+  latency_p50_ms numeric(12,3)
+  latency_p95_ms numeric(12,3)
+  record_kind text [not null]
+  source_reference text [not null]
+  provenance_note text
+  indexes {(evaluation_run_id, dataset_id) [unique]}
 }
 Table school_rag.evaluation_results {
   result_id bigint [pk, increment]
@@ -60,9 +76,10 @@ Table school_rag.evaluation_results {
   dataset_id bigint [not null]
   question_id bigint [not null]
   first_evidence_rank integer
-  reciprocal_rank decimal
-  indexes {(evaluation_run_id,question_id) [unique]}
+  reciprocal_rank numeric(12,7)
+  indexes {(evaluation_run_id, question_id) [unique]}
 }
+// Vztahy 1:N (vazby na auditní běh/dataset mohou být nullable).
 Ref: school_rag.documents.document_id < school_rag.gold_evidence.document_id
 Ref: school_rag.evaluation_datasets.dataset_id < school_rag.evaluation_questions.dataset_id
 Ref: school_rag.evaluation_questions.question_id < school_rag.gold_evidence.question_id

@@ -8,7 +8,7 @@
 | documents | Identifikátor jednoho PDF zdroje z původních evaluačních dat (samotné PDF se neukládá) |
 | evaluation_datasets | Jedna neměnná Git verze datasetu DEV/RANDOM/TEST |
 | evaluation_questions | Jedna otázka v konkrétní verzi datasetu |
-| gold_evidence | Jedna sada alternativních ověřovacích fragmentů a fyzických PDF stran pro otázku a zdroj |
+| gold_evidence | Jeden očekávaný textový fragment na jedné fyzické stránce PDF, přiřazený k otázce a zdroji |
 | indexing_runs | Jedno skutečné spuštění indexování; bez lokálního indexu se do této tabulky nevymýšlejí data |
 | evaluation_runs | Jeden evaluační běh nebo zdokumentovaný historický souhrn (původ je výslovně označen) |
 | evaluation_results | Výsledek jedné otázky v reálném běhu; z agregovaného MRR jej nelze zpětně zrekonstruovat |
@@ -16,7 +16,7 @@
 **Zjednodušení z 9 na 7:** vypuštěny `document_versions` a `document_chunks`. Část historizace řeší verzované datasety a evidence indexovacích běhů; chunky/embeddingy zůstávají v ChromaDB. Nevýhoda: tento školní model neudržuje verze obsahu jednotlivých PDF ani referenční integritu vůči chunkům. Pro provozní RAG může být později vhodné samostatné rozšíření, nikoli automatická migrace.
 
 ## Původ skutečných dat
-- Otázky DEV (20) a RANDOM (25) jsou beze změny převzaty z `rag_api_project/eval/dev_questions.json` a `rag_api_project/eval/random_questions.json`. Pole `gold_evidence` zachovávají fyzické stránky (1-based) a logiku `contains_any` (OR).
+- Otázky DEV (20) a RANDOM (25) jsou beze změny převzaty z `rag_api_project/eval/dev_questions.json` a `rag_api_project/eval/random_questions.json`. Z původních 50 skupin `gold_evidence` vytváříme 62 atomických dvojic (fyzická stránka, alternativní textový fragment). Logika `contains_any` (OR) zůstává zachována; žádné SQL pole neobsahuje seznam hodnot. Model je vhodnější pro výuku 1NF.
 - Tři názvy PDF jsou **reálně uvedeny v těchto datasetech**, soubory PDF nejsou součástí veřejného repozitáře. `file_sha256=NULL` není vymyšlený hash.
 - Čtyři historické souhrny BM25 vs Vector (20. 10. 2026) jsou přepsány z `docs/en/EVALUATION.md`, oddíl 8. MRR je historický záznam, Hit@K pochází ze staršího reportu a není nezávisle reprodukován; původní JSONL, korpus a index nejsou zveřejněny. `record_kind=documented_baseline`, `executed_at=NULL`, `dataset_sha256=NULL`. Původní SHA-256 historických datasetů není dostupné, takže tyto čtyři souhrny mají záměrně `dataset_id=NULL` a pouze `dataset_label`: nevytváříme falešnou vazbu na dnešní verzi. Bez původních dat nejsou vymyšleny individuální výsledky ani latence.
 - TEST je úmyslně vynechán. Původní chráněné datové soubory se nemění.
@@ -25,11 +25,11 @@
 1. V pgAdmin nebo psql vytvoř **novou**, prázdnou databázi `local_rag_school`. Nepoužívej existující provozní databázi.
 2. Připoj se k ní a spusť `01_schema.sql`.
 3. Spusť `02_seed_real.sql`. Opakovaný běh skriptu nemá přidávat duplicitní zdroje.
-4. Spusť `05_checks.sql`, následně analytické `03_queries.sql`.
+4. Spusť `05_checks.sql`, integritní test `06_integrity_tests.sql` a následně analytické `03_queries.sql`.
 5. Soubor `04_dynamic_workflow.sql` demonstruje zápis nové události do databáze a končí `ROLLBACK`; nevytváří falešná měření.
 6. Pro školu otevři `relational_model.dbml` v dbdiagram.io a vyexportuj grafický relační model do PDF.
 
-Bez běžícího PostgreSQL serveru nelze tvrdit, že byly SQL skripty integračně otestovány; kontrola po nasazení je součástí kroku 4.
+Schéma, DML, analytické dotazy, idempotence a integritní testy jsou ověřovány na skutečném PostgreSQL 16 v GitHub Actions (`.github/workflows/school-postgresql.yml`). Lokální školní instalaci je i tak potřeba spustit a zkontrolovat samostatně.
 
 ## Netriviální operace pro DS II
 1. Porovnat MRR a Hit@K BM25 a Vector **pro tentýž dataset i indexovací snapshot**, nikoli pouze nejvyšší skóre bez kontroly provenance.

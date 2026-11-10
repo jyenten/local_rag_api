@@ -10,7 +10,7 @@ BEGIN
       WHERE record_kind='documented_baseline';
     SELECT COUNT(*) INTO n_gold FROM school_rag.gold_evidence;
     IF n_documents < 3 OR n_datasets < 2 OR n_questions < 45
-       OR n_runs < 4 OR n_gold < 50 THEN
+       OR n_runs < 4 OR n_gold < 62 THEN
         RAISE EXCEPTION
           'Seed mismatch: documents %, datasets %, questions %, runs %, evidence %',
           n_documents,n_datasets,n_questions,n_runs,n_gold;

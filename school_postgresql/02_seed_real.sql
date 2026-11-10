@@ -1,7 +1,7 @@
 -- Reálná DEV/RANDOM data ze zdrojového Git commitu 1dfbaff02eed608b2c95a7c6d96d427b2239d6d0
 -- Původ: chráněné soubory zůstávají NEDOTČENÉ; TEST není importován.
 -- 3 evidence zdrojových PDF názvů, 2 dataset verze, 45 skutečných otázek,
--- 50 původních gold evidence, 4 historické dokumentované souhrny.
+-- 62 normalizovaných gold evidence řádků (50 zdrojových skupin), 4 historické dokumentované souhrny.
 -- PDF ani původní JSONL nejsou ve veřejném repozitáři: neoznačovat za verifikované.
 BEGIN;
 
@@ -76,93 +76,107 @@ JOIN school_rag.evaluation_datasets AS d
  AND d.source_git_blob_sha=p.source_git_blob_sha
 ON CONFLICT (dataset_id,external_question_id) DO NOTHING;
 
--- Původní gold_evidence: alternativní fragmenty = OR, stránky = fyzické PDF strany.
-WITH payload(dataset_name,source_git_blob_sha,external_question_id,evidence_ordinal,source_filename,pages,contains_any) AS (
+-- Normalizované gold evidence: zdrojové pole pages × contains_any se rozvine do
+-- jedné (page_number, fragment) dvojice na řádek, bez ztráty OR sémantiky.
+-- Původ: přesně 50 skupin gold evidence => 62 atomických řádků (1NF).
+WITH payload(dataset_name,source_git_blob_sha,external_question_id,evidence_ordinal,source_filename,page_number,fragment) AS (
 VALUES
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_001', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', ARRAY[36]::integer[], ARRAY['devices set the DoNotAge (DNA) bit in their LSAs','LSAs marked with the DNA bit do not age out']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_002', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', ARRAY[28]::integer[], ARRAY['passive-interface type number','Device(config)# passive-interface gigabitethernet 1/0/6']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_002', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[447,448]::integer[], ARRAY['passive-interface router configuration command','passive-interface interface-id']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_003', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', ARRAY[26]::integer[], ARRAY['Maintains backbone continuity in OSPF','This establishes a logical connection between two ABRs through a non-backbone']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_003', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[149]::integer[], ARRAY['all areas must be connected to a backbone area','You can establish a virtual link in case of a backbone-continuity break']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_004', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', ARRAY[26]::integer[], ARRAY['OSPF calculates the cost of an interface based on its bandwidth using the formula','cost = reference_bandwidth / interface_bandwidth']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_005', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[150]::integer[], ARRAY['OSPF uses the highest IP address configured on the interfaces as its router ID','OSPF automatically prefers a loopback interface over other interfaces, and it chooses the highest IP address among all loopback interfaces']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_006', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', ARRAY[40]::integer[], ARRAY['NSSA areas use Type-7 LSAs to describe external routes','The NSSA ABR translates these Type-7 LSAs into Type-5 LSAs (Autonomous System External LSAs) before flooding them into the backbone (Area 0)']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'dhcp_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[53]::integer[], ARRAY['you must configure the switch with the ip helper-address address interface configuration command']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'dhcp_dev_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[47]::integer[], ARRAY['If the server is option-82-capable, it can use the remote ID, the circuit ID, or both to assign IP addresses and implement policies']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'routing_dev_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[450]::integer[], ARRAY['An administrative distance is a rating of the trustworthiness of a routing information source']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ipv6_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[24]::integer[], ARRAY['Hosts take the first 64 bits of the IPv6 prefix from the Router Advertisement message']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'nat_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[143]::integer[], ARRAY['the packet gets translated to the corresponding inside global address','The device replaces the inside local source address of host 10.1.1.1 with the inside global address of the translation']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'dhcpv6_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[84]::integer[], ARRAY['the relay includes an address from the client-facing interface (Ethernet 1/0) in the link-address field of a relay-forward message. This address is used by the server to select an address pool']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'nat_dev_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[144]::integer[], ARRAY['The TCP port numbers act as differentiators.','many inside hosts can share the inside global IP address by using many port numbers']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ipv6_dev_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[23]::integer[], ARRAY['request to ensure there is no duplicate IP address on the network']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ipv6_dev_002', 2, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[24]::integer[], ARRAY['Duplicate Address Detection is performed by IPv6 clients in order to ensure that random addresses that are picked do not collide with other clients']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'routing_dev_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[434]::integer[], ARRAY['A router might not be able to learn the routes to all other networks. To provide complete routing capability, you can use some routers as smart routers and give the remaining routers default routes to the smart router.']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'rip_dev_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[135]::integer[], ARRAY['a network with a hop count of 16 is unreachable']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'eigrp_dev_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[247]::integer[], ARRAY['EIGRP uses the successor as the primary path and feasible successors as repair paths or LFAs']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'bgp_dev_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[292]::integer[], ARRAY['The range is 0 to 4294967295 with the higher value preferred']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'bgp_dev_001', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[298]::integer[], ARRAY['The highest local preference value is preferred']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'bgp_dev_001', 3, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[283]::integer[], ARRAY['Prefer the route with the highest local preference']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ipv6_dev_003', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[26]::integer[], ARRAY['Neighbor Discovery replaces ARP, ICMP Router Discovery, and ICMP Redirect used in IPv4']::text[]),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'dhcp_dev_003', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[45]::integer[], ARRAY['DHCP snooping is a DHCP security feature that provides network security by filtering untrusted DHCP messages and by building and maintaining a DHCP snooping binding database']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bgp_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[283]::integer[], ARRAY['Prefer the route with the lowest multi-exit discriminator (MED) metric attribute if the neighboring AS is the same for all routes considered']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'dhcp_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[49]::integer[], ARRAY['An address binding is a mapping between an IP address and a MAC address of a host in the Cisco IOS DHCP server database']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'ipv6_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[27]::integer[], ARRAY['RA guard increases the security of the IPv6 network by dropping the unwanted or rogue RA packets that come from clients']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'nat_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[142]::integer[], ARRAY['Dynamic address translation (dynamic NAT)—Maps unregistered IP addresses to registered IP addresses from a pool of registered IP addresses']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'routing_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[442]::integer[], ARRAY['Redistributes routes from one routing protocol to another routing protocol']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'rip_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[136]::integer[], ARRAY['Split horizon blocks information about
-routes from being advertised by a router on any interface from which that information originated.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'eigrp_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[234]::integer[], ARRAY['Any neighbor that receives a packet informing it of the stub status will not query the stub device for any routes,
-and a device that has a stub peer will not query that peer.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bgp_random_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[286]::integer[], ARRAY['If the penalty is less than the reuse limit, a suppressed route that is up is advertised again.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'ipv6_random_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[20]::integer[], ARRAY['IPv6 routers do not forward packets with link-local source or destination addresses to other links.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'dhcp_random_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[50]::integer[], ARRAY['Each entry in the file is tagged with a checksum value that the switch uses to verify the entries when it reads
-the file.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'ipv6_random_003', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[20]::integer[], ARRAY['The DNS AAAA resource record types support IPv6 addresses and are equivalent to an A
-address record in IPv4.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'glbp_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[95]::integer[], ARRAY['A keyed hash of an incoming packet is generated and, if the hash within the
-incoming packet does not match the generated hash, the packet is ignored.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bgp_random_003', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[285]::integer[], ARRAY['Neighbors with the same update policies can be
-grouped into peer groups to simplify configuration and to make updating more efficient.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'eigrp_random_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[233]::integer[], ARRAY['To prevent an adjacency reset by the neighbors, the new active switch uses a new Restart (RS) bit in the
-EIGRP packet header to show the restart.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'ospf_random_001', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', ARRAY[74]::integer[], ARRAY['Link-local signaling provides a mechanism to append additional data to OSPF hello and database description
-packets by using a dedicated link-local signaling data block (a TLV structure).']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'routing_random_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[84]::integer[], ARRAY['With classless
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_001', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 36, 'devices set the DoNotAge (DNA) bit in their LSAs'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_001', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 36, 'LSAs marked with the DNA bit do not age out'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_002', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 28, 'passive-interface type number'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_002', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 28, 'Device(config)# passive-interface gigabitethernet 1/0/6'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_002', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 447, 'passive-interface router configuration command'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_002', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 447, 'passive-interface interface-id'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_002', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 448, 'passive-interface router configuration command'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_002', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 448, 'passive-interface interface-id'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_003', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 26, 'Maintains backbone continuity in OSPF'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_003', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 26, 'This establishes a logical connection between two ABRs through a non-backbone'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_003', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 149, 'all areas must be connected to a backbone area'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_003', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 149, 'You can establish a virtual link in case of a backbone-continuity break'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_004', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 26, 'OSPF calculates the cost of an interface based on its bandwidth using the formula'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_004', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 26, 'cost = reference_bandwidth / interface_bandwidth'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_005', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 150, 'OSPF uses the highest IP address configured on the interfaces as its router ID'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_005', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 150, 'OSPF automatically prefers a loopback interface over other interfaces, and it chooses the highest IP address among all loopback interfaces'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_006', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 40, 'NSSA areas use Type-7 LSAs to describe external routes'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ospf_dev_006', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 40, 'The NSSA ABR translates these Type-7 LSAs into Type-5 LSAs (Autonomous System External LSAs) before flooding them into the backbone (Area 0)'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'dhcp_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 53, 'you must configure the switch with the ip helper-address address interface configuration command'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'dhcp_dev_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 47, 'If the server is option-82-capable, it can use the remote ID, the circuit ID, or both to assign IP addresses and implement policies'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'routing_dev_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 450, 'An administrative distance is a rating of the trustworthiness of a routing information source'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ipv6_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 24, 'Hosts take the first 64 bits of the IPv6 prefix from the Router Advertisement message'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'nat_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 143, 'the packet gets translated to the corresponding inside global address'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'nat_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 143, 'The device replaces the inside local source address of host 10.1.1.1 with the inside global address of the translation'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'dhcpv6_dev_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 84, 'the relay includes an address from the client-facing interface (Ethernet 1/0) in the link-address field of a relay-forward message. This address is used by the server to select an address pool'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'nat_dev_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 144, 'The TCP port numbers act as differentiators.'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'nat_dev_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 144, 'many inside hosts can share the inside global IP address by using many port numbers'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ipv6_dev_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 23, 'request to ensure there is no duplicate IP address on the network'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ipv6_dev_002', 2, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 24, 'Duplicate Address Detection is performed by IPv6 clients in order to ensure that random addresses that are picked do not collide with other clients'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'routing_dev_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 434, 'A router might not be able to learn the routes to all other networks. To provide complete routing capability, you can use some routers as smart routers and give the remaining routers default routes to the smart router.'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'rip_dev_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 135, 'a network with a hop count of 16 is unreachable'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'eigrp_dev_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 247, 'EIGRP uses the successor as the primary path and feasible successors as repair paths or LFAs'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'bgp_dev_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 292, 'The range is 0 to 4294967295 with the higher value preferred'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'bgp_dev_001', 2, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 298, 'The highest local preference value is preferred'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'bgp_dev_001', 3, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 283, 'Prefer the route with the highest local preference'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'ipv6_dev_003', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 26, 'Neighbor Discovery replaces ARP, ICMP Router Discovery, and ICMP Redirect used in IPv4'),
+    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'dhcp_dev_003', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 45, 'DHCP snooping is a DHCP security feature that provides network security by filtering untrusted DHCP messages and by building and maintaining a DHCP snooping binding database'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bgp_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 283, 'Prefer the route with the lowest multi-exit discriminator (MED) metric attribute if the neighboring AS is the same for all routes considered'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'dhcp_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 49, 'An address binding is a mapping between an IP address and a MAC address of a host in the Cisco IOS DHCP server database'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'ipv6_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 27, 'RA guard increases the security of the IPv6 network by dropping the unwanted or rogue RA packets that come from clients'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'nat_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 142, 'Dynamic address translation (dynamic NAT)—Maps unregistered IP addresses to registered IP addresses from a pool of registered IP addresses'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'routing_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 442, 'Redistributes routes from one routing protocol to another routing protocol'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'rip_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 136, 'Split horizon blocks information about
+routes from being advertised by a router on any interface from which that information originated.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'eigrp_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 234, 'Any neighbor that receives a packet informing it of the stub status will not query the stub device for any routes,
+and a device that has a stub peer will not query that peer.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bgp_random_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 286, 'If the penalty is less than the reuse limit, a suppressed route that is up is advertised again.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'ipv6_random_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 20, 'IPv6 routers do not forward packets with link-local source or destination addresses to other links.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'dhcp_random_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 50, 'Each entry in the file is tagged with a checksum value that the switch uses to verify the entries when it reads
+the file.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'ipv6_random_003', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 20, 'The DNS AAAA resource record types support IPv6 addresses and are equivalent to an A
+address record in IPv4.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'glbp_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 95, 'A keyed hash of an incoming packet is generated and, if the hash within the
+incoming packet does not match the generated hash, the packet is ignored.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bgp_random_003', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 285, 'Neighbors with the same update policies can be
+grouped into peer groups to simplify configuration and to make updating more efficient.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'eigrp_random_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 233, 'To prevent an adjacency reset by the neighbors, the new active switch uses a new Restart (RS) bit in the
+EIGRP packet header to show the restart.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'ospf_random_001', 1, 'Cisco_OSPF_Configuration_Guide_2026.pdf', 74, 'Link-local signaling provides a mechanism to append additional data to OSPF hello and database description
+packets by using a dedicated link-local signaling data block (a TLV structure).'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'routing_random_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 84, 'With classless
 routing, if a router receives packets for a subnet of a network with no default route, the router forwards the
-packet to the best supernet route.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'rip_random_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[135]::integer[], ARRAY['Using RIP, the switch sends routing information updates (advertisements) every 30 seconds.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'eigrp_random_003', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[232]::integer[], ARRAY['The reliable transport protocol is responsible for guaranteed, ordered delivery of EIGRP packets to all
-neighbors.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'nat_random_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[142]::integer[], ARRAY['Static translation is useful when a host on the inside must be accessible by a fixed address from
-the outside.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'tunneling_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[88]::integer[], ARRAY['Overlay tunnels reduce the maximum transmission unit (MTU) of an interface by 20 octets (assuming that
-the basic IPv4 packet header does not contain optional fields).']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bfd_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[9]::integer[], ARRAY['BFD is a forwarding path failure detection protocol. BFD detects a failure, but the routing protocol must
-act to bypass a failed peer.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'msdp_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', ARRAY[58]::integer[], ARRAY['The SA message identifies the source,
+packet to the best supernet route.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'rip_random_002', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 135, 'Using RIP, the switch sends routing information updates (advertisements) every 30 seconds.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'eigrp_random_003', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 232, 'The reliable transport protocol is responsible for guaranteed, ordered delivery of EIGRP packets to all
+neighbors.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'nat_random_002', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 142, 'Static translation is useful when a host on the inside must be accessible by a fixed address from
+the outside.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'tunneling_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 88, 'Overlay tunnels reduce the maximum transmission unit (MTU) of an interface by 20 octets (assuming that
+the basic IPv4 packet header does not contain optional fields).'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bfd_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 9, 'BFD is a forwarding path failure detection protocol. BFD detects a failure, but the routing protocol must
+act to bypass a failed peer.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'msdp_random_001', 1, 'Cisco_IP_Routing_Configuration_Guide_2026.pdf', 58, 'The SA message identifies the source,
 the group the source is sending to, and the address of the RP or the originator ID (the IP address of the interface
-used as the RP address), if configured.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'hsrp_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[112]::integer[], ARRAY['HSRP detects when the designated active router fails, and a selected standby router assumes control of the
-Hot Standby group''s MAC and IP addresses.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'wccp_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[181]::integer[], ARRAY['If the requested information
+used as the RP address), if configured.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'hsrp_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 112, 'HSRP detects when the designated active router fails, and a selected standby router assumes control of the
+Hot Standby group''s MAC and IP addresses.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'wccp_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 181, 'If the requested information
 is not present, the content engine issues its own request to the originally targeted server to get the required
-information.']::text[]),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'tracking_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', ARRAY[202]::integer[], ARRAY['When you track the IP
+information.'),
+    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'tracking_random_001', 1, 'Cisco_IP_Addressing_Services_Guide_2026.pdf', 202, 'When you track the IP
 routing state, these three conditions are required for the object to be up:
 • IP routing must be enabled and active on the interface.
 • The interface line-protocol state must be up.
-• The interface IP address must be known.']::text[])
+• The interface IP address must be known.')
 )
 INSERT INTO school_rag.gold_evidence
-  (question_id,document_id,evidence_ordinal,pages,contains_any)
-SELECT q.question_id,doc.document_id,p.evidence_ordinal,p.pages,p.contains_any
+  (question_id,document_id,evidence_ordinal,page_number,fragment)
+SELECT q.question_id,doc.document_id,p.evidence_ordinal,p.page_number,p.fragment
 FROM payload AS p
 JOIN school_rag.evaluation_datasets AS d
   ON d.dataset_name=p.dataset_name AND d.source_git_blob_sha=p.source_git_blob_sha
 JOIN school_rag.evaluation_questions AS q
   ON q.dataset_id=d.dataset_id AND q.external_question_id=p.external_question_id
 JOIN school_rag.documents AS doc ON doc.source_filename=p.source_filename
-ON CONFLICT (question_id,evidence_ordinal) DO NOTHING;
+ON CONFLICT (question_id,evidence_ordinal,document_id,page_number,fragment) DO NOTHING;
 
 -- Doložené historické MRR (2026-10-20): hodnoty z docs/en/EVALUATION.md §8.
 -- Původní dataset SHA-256 z té doby není doložen. Historický běh NESPOJUJEME

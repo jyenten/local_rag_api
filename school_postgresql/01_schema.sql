@@ -48,19 +48,13 @@ CREATE TABLE school_rag.gold_evidence (
     question_id bigint NOT NULL REFERENCES school_rag.evaluation_questions(question_id),
     document_id bigint NOT NULL REFERENCES school_rag.documents(document_id),
     evidence_ordinal integer NOT NULL CHECK (evidence_ordinal > 0),
-    pages integer[] NOT NULL,
-    contains_any text[] NOT NULL,
-    CONSTRAINT evidence_position_unique UNIQUE (question_id,evidence_ordinal),
-    CONSTRAINT evidence_pages_valid CHECK (
-        cardinality(pages) > 0 AND 0 < ALL(pages)
-    ),
-    CONSTRAINT evidence_fragments_valid CHECK (
-        cardinality(contains_any) > 0
-        AND array_position(contains_any, NULL) IS NULL
-        AND array_position(contains_any, '') IS NULL
-    )
+    page_number integer NOT NULL CHECK (page_number > 0),
+    fragment text NOT NULL CHECK (btrim(fragment) <> ''),
+    CONSTRAINT evidence_match_unique UNIQUE
+      (question_id, evidence_ordinal, document_id, page_number, fragment)
 );
--- Stránky jsou fyzické, číslované od 1; contains_any má OR sémantiku.
+-- 1NF: jeden řádek = jeden alternativní textový fragment na jedné fyzické
+-- stránce PDF. Kombinace původních pages × contains_any zachovává OR logiku.
 
 CREATE TABLE school_rag.indexing_runs (
     indexing_run_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

@@ -20,7 +20,7 @@ ORDER BY evidence_count DESC;
 
 -- Q3 Zásadní školní JOIN: téma -> otázka -> dokument -> stránky.
 SELECT d.dataset_name, q.external_question_id, q.topic,
-       doc.source_filename, g.pages
+       doc.source_filename, g.page_number, g.fragment
 FROM school_rag.evaluation_datasets AS d
 JOIN school_rag.evaluation_questions AS q ON q.dataset_id = d.dataset_id
 JOIN school_rag.gold_evidence AS g ON g.question_id = q.question_id
@@ -28,13 +28,12 @@ JOIN school_rag.documents AS doc ON doc.document_id = g.document_id
 WHERE q.topic LIKE 'ospf%'
 ORDER BY d.dataset_name, q.external_question_id, g.evidence_ordinal;
 
--- Q4 Rozbalení skutečných fyzických stran PDF.
-SELECT doc.source_filename, p.page_number, COUNT(*) AS evidence_occurrences
+-- Q4 Fyzické stránky PDF a počet evidovaných alternativních fragmentů.
+SELECT doc.source_filename, g.page_number, COUNT(*) AS matching_fragments
 FROM school_rag.gold_evidence AS g
 JOIN school_rag.documents AS doc ON doc.document_id = g.document_id
-CROSS JOIN LATERAL unnest(g.pages) AS p(page_number)
-GROUP BY doc.source_filename, p.page_number
-ORDER BY evidence_occurrences DESC, doc.source_filename, p.page_number;
+GROUP BY doc.source_filename, g.page_number
+ORDER BY matching_fragments DESC, doc.source_filename, g.page_number;
 
 -- Q5 Zdokumentované historické srovnání, NIKOLI nově změřené.
 SELECT r.dataset_label, r.retriever, r.run_date, r.mrr,

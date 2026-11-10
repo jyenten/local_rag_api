@@ -33,8 +33,8 @@ BEGIN
   -- CHECK na negativní stranu.
   BEGIN
     INSERT INTO school_rag.gold_evidence
-      (question_id,document_id,evidence_ordinal,pages,contains_any)
-    VALUES (q_id,doc_id,1001,ARRAY[0],ARRAY['real fragment']);
+      (question_id,document_id,evidence_ordinal,page_number,fragment)
+    VALUES (q_id,doc_id,1001,0,'real fragment');
     RAISE EXCEPTION 'FAIL: negativni strana prosla';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
@@ -42,8 +42,8 @@ BEGIN
   -- CHECK prázdného fragmentu důkazu.
   BEGIN
     INSERT INTO school_rag.gold_evidence
-      (question_id,document_id,evidence_ordinal,pages,contains_any)
-    VALUES (q_id,doc_id,1002,ARRAY[1],ARRAY['']);
+      (question_id,document_id,evidence_ordinal,page_number,fragment)
+    VALUES (q_id,doc_id,1002,1,'');
     RAISE EXCEPTION 'FAIL: prazdny fragment prosel';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
@@ -51,8 +51,8 @@ BEGIN
   -- FK: odkaz na neexistující dokument.
   BEGIN
     INSERT INTO school_rag.gold_evidence
-      (question_id,document_id,evidence_ordinal,pages,contains_any)
-    VALUES (q_id,-1000,1003,ARRAY[1],ARRAY['test']);
+      (question_id,document_id,evidence_ordinal,page_number,fragment)
+    VALUES (q_id,-1000,1003,1,'test');
     RAISE EXCEPTION 'FAIL: neexistujici dokument prosel';
   EXCEPTION WHEN foreign_key_violation THEN NULL;
   END;
