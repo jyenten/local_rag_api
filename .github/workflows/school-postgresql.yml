@@ -1,0 +1,62 @@
+name: School PostgreSQL integration
+
+on:
+  push:
+    branches:
+      - school/postgresql-rag-seven-tables
+    paths:
+      - "school_postgresql/**"
+      - ".github/workflows/school-postgresql.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: local_rag_school
+          POSTGRES_USER: school_ci
+          POSTGRES_PASSWORD: school_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U school_ci -d local_rag_school"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATABASE: local_rag_school
+      PGUSER: school_ci
+      PGPASSWORD: school_ci_only
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client
+      - name: Create seven-table schema
+        run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/01_schema.sql
+      - name: Import authentic DEV/RANDOM records and documented baseline
+        run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/02_seed_real.sql
+      - name: Verify imported rows
+        run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/05_checks.sql
+      - name: Check referential integrity and dynamic transactions
+        run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/06_integrity_tests.sql
+      - name: Run analytical queries
+        run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/03_queries.sql
+      - name: Confirm seed is repeatable
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f school_postgresql/02_seed_real.sql
+          psql -X -v ON_ERROR_STOP=1 -f school_postgresql/05_checks.sql
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Test JSONL validation logic
+        run: python -m unittest discover -s school_postgresql -p "test_*.py" -v

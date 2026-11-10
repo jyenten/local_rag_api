@@ -22,6 +22,7 @@ CREATE TABLE school_rag.evaluation_datasets (
     source_commit_sha char(40) NOT NULL,
     imported_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT datasets_revision_unique UNIQUE (dataset_name, source_git_blob_sha),
+    CONSTRAINT datasets_id_name_unique UNIQUE (dataset_id, dataset_name),
     CONSTRAINT datasets_git_sha_valid CHECK (
         source_git_blob_sha ~ '^[0-9a-f]{40}$'
         AND source_commit_sha ~ '^[0-9a-f]{40}$'
@@ -56,6 +57,7 @@ CREATE TABLE school_rag.gold_evidence (
     CONSTRAINT evidence_fragments_valid CHECK (
         cardinality(contains_any) > 0
         AND array_position(contains_any, NULL) IS NULL
+        AND array_position(contains_any, '') IS NULL
     )
 );
 -- Stránky jsou fyzické, číslované od 1; contains_any má OR sémantiku.
@@ -109,6 +111,8 @@ CREATE TABLE school_rag.evaluation_runs (
     source_reference text NOT NULL,
     provenance_note text,
     CONSTRAINT runs_dataset_pair UNIQUE (evaluation_run_id,dataset_id),
+    CONSTRAINT runs_dataset_name_fk FOREIGN KEY (dataset_id,dataset_label)
+       REFERENCES school_rag.evaluation_datasets(dataset_id,dataset_name),
     CONSTRAINT runs_historical_dataset_guard CHECK (
         (record_kind='documented_baseline' AND dataset_id IS NULL)
         OR (record_kind='jsonl_run' AND dataset_id IS NOT NULL)
