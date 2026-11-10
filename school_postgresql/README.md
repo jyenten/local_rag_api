@@ -44,3 +44,18 @@ Tabulky `indexing_runs` a `evaluation_results` v prvotním real-data seedu nemaj
 Databáze zaznamenává skutečně proměnlivý proces: příchod nových otázek, záznam nové verze datasetu, spouštění indexování, měření běhů, detailní skóre a porovnávání metod. Splňuje 7 tabulek a více než 5 entitních vazeb. Originální problém je reprodukovatelná evaluace RAG.
 
 **Bezpečnost:** nedávat do GitHubu zdrojová PDF, lokální Chroma data, `.env`, autentizační údaje ani interní dotazy. Změny jsou výhradně v tomto odděleném adresáři a neimplementují PostgreSQL do FastAPI.
+
+## Import nových skutečných dat (dynamická část)
+Při lokálně dostupných původních souborech `eval/results/*.jsonl` lze vložit **reálně naměřené** jednotlivé výsledky; bez lokálního corpus/indexu není možné je znovu vytvořit. Skript používá parametrizované SQL, kontroluje původní SHA-256 datasetu, Git blob verzi, kompletnost otázek a přepočítá MRR/Hit@K před zápisem.
+
+Z kořene repozitáře (příklad PowerShell):
+```powershell
+python -m pip install "psycopg[binary]"
+python school_postgresql/import_real_history.py --dataset dev --dataset-file rag_api_project/eval/dev_questions.json --retriever bm25 --history-file rag_api_project/eval/results/dev_bm25_runs.jsonl --check-only
+$env:SCHOOL_RAG_DSN = 'postgresql://UZIVATEL:HESLO@localhost:5432/local_rag_school'
+python school_postgresql/import_real_history.py --dataset dev --dataset-file rag_api_project/eval/dev_questions.json --retriever bm25 --history-file rag_api_project/eval/results/dev_bm25_runs.jsonl
+```
+Heslo nikdy neukládej do repozitáře. Import existujících real-data JSONL je volitelný, nevkládá žádná vymyšlená měření. Skutečné běhy bez ověřeného indexovacího manifestu ponechávají `indexing_run_id=NULL` a nelze je tvrdit jako plně srovnatelné napříč korpusy. Validátor má izolované testy:
+```powershell
+python -m unittest discover -s school_postgresql -p "test_*.py" -v
+```
