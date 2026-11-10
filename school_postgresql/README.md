@@ -16,7 +16,7 @@
 **Zjednodušení z 9 na 7:** vypuštěny `document_versions` a `document_chunks`. Část historizace řeší verzované datasety a evidence indexovacích běhů; chunky/embeddingy zůstávají v ChromaDB. Nevýhoda: tento školní model neudržuje verze obsahu jednotlivých PDF ani referenční integritu vůči chunkům. Pro provozní RAG může být později vhodné samostatné rozšíření, nikoli automatická migrace.
 
 ## Původ skutečných dat
-- Otázky DEV (20) a RANDOM (25) jsou beze změny převzaty z `rag_api_project/eval/dev_questions.json` a `rag_api_project/eval/random_questions.json`. Z původních 50 skupin `gold_evidence` vytváříme 62 atomických dvojic (fyzická stránka, alternativní textový fragment). Logika `contains_any` (OR) zůstává zachována; žádné SQL pole neobsahuje seznam hodnot. Model je vhodnější pro výuku 1NF.
+- Otázky DEV (20) a RANDOM (25) jsou beze změny převzaty z `rag_api_project/eval/dev_questions.json` a `rag_api_project/eval/random_questions.json`. Z původních 50 skupin `gold_evidence` vytváříme 62 atomických dvojic (povolená fyzická stránka, alternativní textový fragment). Neznamená to, že každý fragment byl nezávisle potvrzen na každé z uvedených stran: zdrojové PDF chybí ve veřejném repozitáři. Logika `contains_any` (OR) zůstává zachována; žádné SQL pole neobsahuje seznam hodnot. Model je vhodnější pro výuku 1NF.
 - Tři názvy PDF jsou **reálně uvedeny v těchto datasetech**, soubory PDF nejsou součástí veřejného repozitáře. `file_sha256=NULL` není vymyšlený hash.
 - Čtyři historické souhrny BM25 vs Vector (20. 10. 2026) jsou přepsány z `docs/en/EVALUATION.md`, oddíl 8. MRR je historický záznam, Hit@K pochází ze staršího reportu a není nezávisle reprodukován; původní JSONL, korpus a index nejsou zveřejněny. `record_kind=documented_baseline`, `executed_at=NULL`, `dataset_sha256=NULL`. Původní SHA-256 historických datasetů není dostupné, takže tyto čtyři souhrny mají záměrně `dataset_id=NULL` a pouze `dataset_label`: nevytváříme falešnou vazbu na dnešní verzi. Bez původních dat nejsou vymyšleny individuální výsledky ani latence.
 - TEST je úmyslně vynechán. Původní chráněné datové soubory se nemění.
@@ -25,7 +25,7 @@
 1. V pgAdmin nebo psql vytvoř **novou**, prázdnou databázi `local_rag_school`. Nepoužívej existující provozní databázi.
 2. Připoj se k ní a spusť `01_schema.sql`.
 3. Spusť `02_seed_real.sql`. Opakovaný běh skriptu nemá přidávat duplicitní zdroje.
-4. Spusť `05_checks.sql`, integritní test `06_integrity_tests.sql` a následně analytické `03_queries.sql`.
+4. Spusť `05_checks.sql`, integritní test `06_integrity_tests.sql` a následně analytické `03_queries.sql`. Poslední skript kontroluje také opakovatelnost seedu.
 5. Soubor `04_dynamic_workflow.sql` demonstruje zápis nové události do databáze a končí `ROLLBACK`; nevytváří falešná měření.
 6. Pro školu otevři `relational_model.dbml` v dbdiagram.io a vyexportuj grafický relační model do PDF.
 
@@ -43,7 +43,7 @@ Tabulky `indexing_runs` a `evaluation_results` v prvotním real-data seedu nemaj
 ## Proč škola dostane více než katalog
 Databáze zaznamenává skutečně proměnlivý proces: příchod nových otázek, záznam nové verze datasetu, spouštění indexování, měření běhů, detailní skóre a porovnávání metod. Splňuje 7 tabulek a více než 5 entitních vazeb. Originální problém je reprodukovatelná evaluace RAG.
 
-**Bezpečnost:** nedávat do GitHubu zdrojová PDF, lokální Chroma data, `.env`, autentizační údaje ani interní dotazy. Změny jsou výhradně v tomto odděleném adresáři a neimplementují PostgreSQL do FastAPI.
+**Bezpečnost:** nedávat do GitHubu zdrojová PDF, lokální Chroma data, `.env`, autentizační údaje ani interní dotazy. Změny jsou v odděleném adresáři `school_postgresql/` a v samostatném testovacím workflow `.github/workflows/school-postgresql.yml`; provozní FastAPI ani retrieval se nemění.
 
 ## Import nových skutečných dat (dynamická část)
 Při lokálně dostupných původních souborech `eval/results/*.jsonl` lze vložit **reálně naměřené** jednotlivé výsledky; bez lokálního corpus/indexu není možné je znovu vytvořit. Skript používá parametrizované SQL, kontroluje původní SHA-256 datasetu, Git blob verzi, kompletnost otázek a přepočítá MRR/Hit@K před zápisem.
@@ -59,3 +59,10 @@ Heslo nikdy neukládej do repozitáře. Import existujících real-data JSONL je
 ```powershell
 python -m unittest discover -s school_postgresql -p "test_*.py" -v
 ```
+
+## Ověřená integrace a školní odevzdání
+- PostgreSQL 16 skutečně spouští DDL, DML, integritní testy s ROLLBACK, osm analytických dotazů i opakovaný import bez duplicit: https://github.com/jyenten/local_rag_api/actions/runs/42829827443
+- Po normalizaci očekáváme **116 prvotních řádků** (3 dokumenty + 2 datasety + 45 otázek + 62 alternativních důkazů + 4 historické souhrny).
+- Grafický relační model obsahuje všech sedm tabulek, sedm vztahů a úplný soupis atributů; zdrojem je `relational_model.dbml` pro dbdiagram.io. Export do PDF je nutné přiložit k odevzdání.
+- Na počítači studenta doporučujeme samostatnou DB `local_rag_school`, nikdy nepouštět tyto skripty nad ChromaDB nebo hlavním RAG.
+- Normální formy: `gold_evidence` nyní ukládá jednu (stránka, fragment) kombinaci na řádek a nevyužívá pole jako vícehodnotové atributy.
