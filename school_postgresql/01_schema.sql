@@ -84,7 +84,8 @@ CREATE TABLE school_rag.indexing_runs (
 
 CREATE TABLE school_rag.evaluation_runs (
     evaluation_run_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    dataset_id bigint NOT NULL REFERENCES school_rag.evaluation_datasets(dataset_id),
+    dataset_id bigint REFERENCES school_rag.evaluation_datasets(dataset_id),
+    dataset_label text NOT NULL CHECK (dataset_label IN ('dev','random','test')),
     indexing_run_id bigint REFERENCES school_rag.indexing_runs(indexing_run_id),
     retriever text NOT NULL
         CHECK (retriever IN ('bm25','vector','legacy','hybrid_rrf')),
@@ -108,6 +109,10 @@ CREATE TABLE school_rag.evaluation_runs (
     source_reference text NOT NULL,
     provenance_note text,
     CONSTRAINT runs_dataset_pair UNIQUE (evaluation_run_id,dataset_id),
+    CONSTRAINT runs_historical_dataset_guard CHECK (
+        (record_kind='documented_baseline' AND dataset_id IS NULL)
+        OR (record_kind='jsonl_run' AND dataset_id IS NOT NULL)
+    ),
     CONSTRAINT runs_metrics_range CHECK (
         (mrr IS NULL OR mrr BETWEEN 0 AND 1)
         AND (hit_at_1 IS NULL OR hit_at_1 BETWEEN 0 AND 1)

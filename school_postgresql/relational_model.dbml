@@ -44,7 +44,8 @@ Table school_rag.indexing_runs {
 }
 Table school_rag.evaluation_runs {
   evaluation_run_id bigint [pk, increment]
-  dataset_id bigint [not null]
+  dataset_id bigint
+  dataset_label text [not null]
   indexing_run_id bigint
   retriever text [not null]
   run_date date [not null]

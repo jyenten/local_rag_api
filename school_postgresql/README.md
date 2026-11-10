@@ -18,7 +18,7 @@
 ## Původ skutečných dat
 - Otázky DEV (20) a RANDOM (25) jsou beze změny převzaty z `rag_api_project/eval/dev_questions.json` a `rag_api_project/eval/random_questions.json`. Pole `gold_evidence` zachovávají fyzické stránky (1-based) a logiku `contains_any` (OR).
 - Tři názvy PDF jsou **reálně uvedeny v těchto datasetech**, soubory PDF nejsou součástí veřejného repozitáře. `file_sha256=NULL` není vymyšlený hash.
-- Čtyři historické souhrny BM25 vs Vector (20. 10. 2026) jsou přepsány z `docs/en/EVALUATION.md`, oddíl 8. MRR je historický záznam, Hit@K pochází ze staršího reportu a není nezávisle reprodukován; původní JSONL, korpus a index nejsou zveřejněny. `record_kind=documented_baseline`, `executed_at=NULL`, `dataset_sha256=NULL`. Bez původních dat nejsou vymyšleny individuální výsledky ani latence.
+- Čtyři historické souhrny BM25 vs Vector (20. 10. 2026) jsou přepsány z `docs/en/EVALUATION.md`, oddíl 8. MRR je historický záznam, Hit@K pochází ze staršího reportu a není nezávisle reprodukován; původní JSONL, korpus a index nejsou zveřejněny. `record_kind=documented_baseline`, `executed_at=NULL`, `dataset_sha256=NULL`. Původní SHA-256 historických datasetů není dostupné, takže tyto čtyři souhrny mají záměrně `dataset_id=NULL` a pouze `dataset_label`: nevytváříme falešnou vazbu na dnešní verzi. Bez původních dat nejsou vymyšleny individuální výsledky ani latence.
 - TEST je úmyslně vynechán. Původní chráněné datové soubory se nemění.
 
 ## Postup spuštění v PostgreSQL

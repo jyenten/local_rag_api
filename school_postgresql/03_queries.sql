@@ -37,13 +37,12 @@ GROUP BY doc.source_filename, p.page_number
 ORDER BY evidence_occurrences DESC, doc.source_filename, p.page_number;
 
 -- Q5 Zdokumentované historické srovnání, NIKOLI nově změřené.
-SELECT d.dataset_name, r.retriever, r.run_date, r.mrr,
+SELECT r.dataset_label, r.retriever, r.run_date, r.mrr,
        r.hit_at_1, r.hit_at_3, r.hit_at_5, r.hit_at_8,
        r.record_kind
 FROM school_rag.evaluation_runs AS r
-JOIN school_rag.evaluation_datasets AS d ON d.dataset_id = r.dataset_id
 WHERE r.record_kind = 'documented_baseline'
-ORDER BY d.dataset_name, r.retriever;
+ORDER BY r.dataset_label, r.retriever;
 
 -- Q6 Porovnání pouze běhů se stejným datasetem a se známým indexem.
 SELECT d.dataset_name, r.indexing_run_id,

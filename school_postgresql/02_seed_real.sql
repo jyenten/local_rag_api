@@ -165,29 +165,28 @@ JOIN school_rag.documents AS doc ON doc.source_filename=p.source_filename
 ON CONFLICT (question_id,evidence_ordinal) DO NOTHING;
 
 -- Doložené historické MRR (2026-10-20): hodnoty z docs/en/EVALUATION.md §8.
+-- Původní dataset SHA-256 z té doby není doložen. Historický běh NESPOJUJEME
+-- FK na současnou revizi DEV/RANDOM; dataset_id zůstává NULL, dataset_label zachová typ.
 -- Hit@K pochází ze staršího reportu a není bez originálních JSONL reprodukováno.
--- Nejde o nové měření ani o reálné per-question results.
-WITH raw(dataset_name,source_git_blob_sha,retriever,question_count,mrr,h1,h3,h5,h8) AS (
+WITH raw(dataset_label,retriever,question_count,mrr,h1,h3,h5,h8) AS (
 VALUES
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'bm25', 20, 0.7171, 0.60, 0.80, 0.85, 0.90),
-    ('dev', '7e38960197dcde252c8aa047ee626c645d8158e2', 'vector', 20, 0.8321, 0.75, 0.90, 0.90, 0.95),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'bm25', 25, 0.8133, 0.72, 0.92, 0.92, 0.92),
-    ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'vector', 25, 0.6050, 0.44, 0.72, 0.80, 0.84)
+    ('dev', 'bm25', 20, 0.7171, 0.60, 0.80, 0.85, 0.90),
+    ('dev', 'vector', 20, 0.8321, 0.75, 0.90, 0.90, 0.95),
+    ('random', 'bm25', 25, 0.8133, 0.72, 0.92, 0.92, 0.92),
+    ('random', 'vector', 25, 0.6050, 0.44, 0.72, 0.80, 0.84)
 )
 INSERT INTO school_rag.evaluation_runs
-  (dataset_id,retriever,run_date,question_count,mrr,
+  (dataset_label,retriever,run_date,question_count,mrr,
    hit_at_1,hit_at_3,hit_at_5,hit_at_8,
    record_kind,source_reference,provenance_note)
-SELECT d.dataset_id,r.retriever,DATE '2026-10-20',r.question_count,r.mrr,
+SELECT r.dataset_label,r.retriever,DATE '2026-10-20',r.question_count,r.mrr,
        r.h1,r.h3,r.h5,r.h8,'documented_baseline',
        'docs/en/EVALUATION.md#en-8-historical-baseline-2026-10-20',
-       'Historical summary only. Original JSONL, PDF corpus and Chroma index are absent; Hit@K from earlier working report. Not independently reproduced.'
+       'Historical summary only. Dataset revision unknown, dataset_id NULL. Original JSONL, PDF corpus and Chroma index absent; Hit@K not independently reproduced.'
 FROM raw AS r
-JOIN school_rag.evaluation_datasets AS d
-  ON d.dataset_name=r.dataset_name AND d.source_git_blob_sha=r.source_git_blob_sha
 WHERE NOT EXISTS (
   SELECT 1 FROM school_rag.evaluation_runs AS existing
-  WHERE existing.dataset_id=d.dataset_id
+  WHERE existing.dataset_label=r.dataset_label
     AND existing.retriever=r.retriever
     AND existing.run_date=DATE '2026-10-20'
     AND existing.record_kind='documented_baseline'

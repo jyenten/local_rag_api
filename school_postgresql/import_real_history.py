@@ -162,15 +162,15 @@ def main() -> None:
                     raise ValueError("Missing retrieval top-k")
                 cur.execute(
                     """INSERT INTO school_rag.evaluation_runs
-                       (dataset_id,retriever,run_date,executed_at,question_count,
+                       (dataset_id,dataset_label,retriever,run_date,executed_at,question_count,
                         retrieval_top_k,git_commit_sha,git_dirty,dataset_sha256,
                         mrr,hit_at_1,hit_at_3,hit_at_5,hit_at_8,
                         latency_mean_ms,latency_p50_ms,latency_p95_ms,
                         record_kind,source_reference,provenance_note)
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                               %s,%s,%s,%s,%s,%s,%s,'jsonl_run',%s,%s)
+                               %s,%s,%s,%s,%s,%s,%s,%s,'jsonl_run',%s,%s)
                        RETURNING evaluation_run_id""",
-                    (dataset_id,args.retriever,timestamp.date(),timestamp,len(ids),
+                    (dataset_id,args.dataset,args.retriever,timestamp.date(),timestamp,len(ids),
                      top_k,commit,dirty,dataset_hash,
                      raw["metrics"]["mrr"],raw["metrics"]["hit_at_1"],
                      raw["metrics"]["hit_at_3"],raw["metrics"]["hit_at_5"],
