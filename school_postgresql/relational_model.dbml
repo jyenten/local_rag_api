@@ -1,0 +1,71 @@
+// Import into https://dbdiagram.io : graphical relational model, 7 tables.
+// The SQL schema is authoritative for CHECK constraints and composite FKs.
+Table school_rag.documents {
+  document_id bigint [pk, increment]
+  source_filename text [unique, not null]
+  file_sha256 char(64)
+  registered_at timestamptz
+}
+Table school_rag.evaluation_datasets {
+  dataset_id bigint [pk, increment]
+  dataset_name text [not null]
+  source_path text [not null]
+  source_git_blob_sha char(40) [not null]
+  source_commit_sha char(40) [not null]
+  imported_at timestamptz
+  indexes {(dataset_name,source_git_blob_sha) [unique]}
+}
+Table school_rag.evaluation_questions {
+  question_id bigint [pk, increment]
+  dataset_id bigint [not null]
+  external_question_id text [not null]
+  topic text [not null]
+  question_text text [not null]
+  indexes {(dataset_id,external_question_id) [unique]}
+}
+Table school_rag.gold_evidence {
+  evidence_id bigint [pk, increment]
+  question_id bigint [not null]
+  document_id bigint [not null]
+  evidence_ordinal int [not null]
+  pages int[]
+  contains_any text[]
+  indexes {(question_id,evidence_ordinal) [unique]}
+}
+Table school_rag.indexing_runs {
+  indexing_run_id bigint [pk, increment]
+  collection_name text [not null]
+  embedding_model text
+  corpus_snapshot_sha256 char(64)
+  status text [not null]
+  started_at timestamptz
+  finished_at timestamptz
+  chunk_count integer
+}
+Table school_rag.evaluation_runs {
+  evaluation_run_id bigint [pk, increment]
+  dataset_id bigint [not null]
+  indexing_run_id bigint
+  retriever text [not null]
+  run_date date [not null]
+  question_count integer [not null]
+  mrr decimal
+  record_kind text
+  source_reference text
+}
+Table school_rag.evaluation_results {
+  result_id bigint [pk, increment]
+  evaluation_run_id bigint [not null]
+  dataset_id bigint [not null]
+  question_id bigint [not null]
+  first_evidence_rank integer
+  reciprocal_rank decimal
+  indexes {(evaluation_run_id,question_id) [unique]}
+}
+Ref: school_rag.documents.document_id < school_rag.gold_evidence.document_id
+Ref: school_rag.evaluation_datasets.dataset_id < school_rag.evaluation_questions.dataset_id
+Ref: school_rag.evaluation_questions.question_id < school_rag.gold_evidence.question_id
+Ref: school_rag.evaluation_datasets.dataset_id < school_rag.evaluation_runs.dataset_id
+Ref: school_rag.indexing_runs.indexing_run_id < school_rag.evaluation_runs.indexing_run_id
+Ref: school_rag.evaluation_runs.evaluation_run_id < school_rag.evaluation_results.evaluation_run_id
+Ref: school_rag.evaluation_questions.question_id < school_rag.evaluation_results.question_id
