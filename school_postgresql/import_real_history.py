@@ -2,7 +2,7 @@
 
 Usage (from repository root, after SQL schema+seed):
   python -m pip install "psycopg[binary]"
-  set SCHOOL_RAG_DSN=postgresql://USER:PASSWORD@localhost:5432/local_rag_school
+  set SCHOOL_RAG_DSN=postgresql://USER:PASSWORD@localhost:HOST_PORT/local_rag_school
   python school_postgresql/import_real_history.py --dataset dev \
       --dataset-file rag_api_project/eval/dev_questions.json \
       --retriever bm25 \
@@ -124,7 +124,7 @@ def main() -> None:
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """SELECT dataset_id FROM school_rag.evaluation_datasets
+                """SELECT dataset_id FROM school_rag.eval_datasets
                    WHERE dataset_name=%s AND source_git_blob_sha=%s""",
                 (args.dataset,blob_sha))
             row=cur.fetchone()
@@ -133,14 +133,14 @@ def main() -> None:
             dataset_id=row[0]
             cur.execute(
                 """SELECT external_question_id,question_id
-                   FROM school_rag.evaluation_questions WHERE dataset_id=%s""",
+                   FROM school_rag.eval_questions WHERE dataset_id=%s""",
                 (dataset_id,))
             question_map=dict(cur.fetchall())
             if set(question_map) != ids:
                 raise ValueError("Database question IDs differ from local source file")
             for raw,question_results,timestamp,provenance in parsed:
                 cur.execute(
-                    """SELECT evaluation_run_id FROM school_rag.evaluation_runs
+                    """SELECT evaluation_run_id FROM school_rag.eval_runs
                        WHERE record_kind='jsonl_run' AND source_reference=%s""",
                     (provenance,))
                 if cur.fetchone():
@@ -161,26 +161,28 @@ def main() -> None:
                 if type(top_k) is not int or top_k<=0:
                     raise ValueError("Missing retrieval top-k")
                 cur.execute(
-                    """INSERT INTO school_rag.evaluation_runs
+                    """INSERT INTO school_rag.eval_runs
                        (dataset_id,dataset_label,retriever,run_date,executed_at,question_count,
                         retrieval_top_k,git_commit_sha,git_dirty,dataset_sha256,
-                        mrr,hit_at_1,hit_at_3,hit_at_5,hit_at_8,
-                        latency_mean_ms,latency_p50_ms,latency_p95_ms,
+                        mrr,latency_mean_ms,latency_p50_ms,latency_p95_ms,
                         record_kind,source_reference,provenance_note)
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                               %s,%s,%s,%s,%s,%s,%s,%s,'jsonl_run',%s,%s)
+                               %s,%s,%s,%s,'jsonl_run',%s,%s)
                        RETURNING evaluation_run_id""",
                     (dataset_id,args.dataset,args.retriever,timestamp.date(),timestamp,len(ids),
                      top_k,commit,dirty,dataset_hash,
-                     raw["metrics"]["mrr"],raw["metrics"]["hit_at_1"],
-                     raw["metrics"]["hit_at_3"],raw["metrics"]["hit_at_5"],
-                     raw["metrics"]["hit_at_8"],latency.get("mean_ms"),
+                     raw["metrics"]["mrr"],latency.get("mean_ms"),
                      latency.get("p50_ms"),latency.get("p95_ms"),provenance,
                      "Actual local JSONL; indexing_run_id NULL until corpus provenance verified"))
                 run_id=cur.fetchone()[0]
+                for k in (1,3,5,8):
+                    cur.execute(
+                        """INSERT INTO school_rag.eval_hit_rates
+                           (evaluation_run_id,k,hit_rate) VALUES (%s,%s,%s)""",
+                        (run_id,k,raw["metrics"][f"hit_at_{k}"]))
                 for qid,rank in question_results:
                     cur.execute(
-                        """INSERT INTO school_rag.evaluation_results
+                        """INSERT INTO school_rag.eval_results
                            (evaluation_run_id,dataset_id,question_id,first_evidence_rank)
                            VALUES (%s,%s,%s,%s)""",
                         (run_id,dataset_id,question_map[qid],rank))

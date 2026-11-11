@@ -3,7 +3,7 @@ name: School PostgreSQL integration
 on:
   push:
     branches:
-      - school/postgresql-rag-seven-tables
+      - school/postgresql-rag-eight-tables
     paths:
       - "school_postgresql/**"
       - ".github/workflows/school-postgresql.yml"
@@ -15,9 +15,13 @@ permissions:
 jobs:
   postgres:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pg_version: [16, 18]
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:${{ matrix.pg_version }}-alpine
         env:
           POSTGRES_DB: local_rag_school
           POSTGRES_USER: school_ci
@@ -37,16 +41,20 @@ jobs:
       PGPASSWORD: school_ci_only
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update -y
           sudo apt-get install -y postgresql-client
-      - name: Create seven-table schema
+      - name: Create eight-table schema
         run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/01_schema.sql
       - name: Import authentic DEV/RANDOM records and documented baseline
         run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/02_seed_real.sql
       - name: Verify imported rows
-        run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/05_checks.sql
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f school_postgresql/08_verify_eight_tables.sql
+          psql -X -v ON_ERROR_STOP=1 -f school_postgresql/05_checks.sql
       - name: Check referential integrity and dynamic transactions
         run: psql -X -v ON_ERROR_STOP=1 -f school_postgresql/06_integrity_tests.sql
       - name: Run analytical queries
@@ -55,6 +63,16 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -f school_postgresql/02_seed_real.sql
           psql -X -v ON_ERROR_STOP=1 -f school_postgresql/05_checks.sql
+      - name: Test migration from original seven-table database
+        run: |
+          PGDATABASE=postgres psql -X -v ON_ERROR_STOP=1 -c "CREATE DATABASE school_migration_ci"
+          git show 90524238183e508ab903f68b8e727debc45487f8:school_postgresql/01_schema.sql | PGDATABASE=school_migration_ci psql -X -v ON_ERROR_STOP=1
+          git show 90524238183e508ab903f68b8e727debc45487f8:school_postgresql/02_seed_real.sql | PGDATABASE=school_migration_ci psql -X -v ON_ERROR_STOP=1
+          PGDATABASE=school_migration_ci psql -X -v ON_ERROR_STOP=1 -f school_postgresql/07_migrate_from_seven_tables.sql
+          PGDATABASE=school_migration_ci psql -X -v ON_ERROR_STOP=1 -f school_postgresql/08_verify_eight_tables.sql
+          PGDATABASE=school_migration_ci psql -X -v ON_ERROR_STOP=1 -f school_postgresql/05_checks.sql
+          PGDATABASE=school_migration_ci psql -X -v ON_ERROR_STOP=1 -f school_postgresql/06_integrity_tests.sql
+          PGDATABASE=school_migration_ci psql -X -v ON_ERROR_STOP=1 -f school_postgresql/03_queries.sql
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

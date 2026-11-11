@@ -30,6 +30,10 @@ class TestImport(unittest.TestCase):
         raw["metrics"]["mrr"]=0.8
         with self.assertRaises(ValueError):
             validate_run(raw,"dev","abc",ids)
+        raw["metrics"]["mrr"]=0.5
+        raw["metrics"]["hit_at_8"]=0.75
+        with self.assertRaises(ValueError):
+            validate_run(raw,"dev","abc",ids)
 
     def test_source_hash_check(self):
         with TemporaryDirectory() as t:
