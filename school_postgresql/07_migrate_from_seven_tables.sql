@@ -8,7 +8,7 @@ SET LOCAL lock_timeout = '10s';
 
 DO $preflight$
 BEGIN
-  IF current_database() <> 'local_rag_school' THEN
+  IF current_database() NOT IN ('local_rag_school','school_migration_ci') THEN
     RAISE EXCEPTION 'Refusing migration outside local_rag_school (current: %)',
       current_database();
   END IF;
