@@ -4,8 +4,8 @@
 -- Q1 Počty otázek a gold evidence podle datasetu.
 SELECT d.dataset_name, COUNT(DISTINCT q.question_id) AS questions,
        COUNT(g.evidence_id) AS evidence_records
-FROM school_rag.evaluation_datasets AS d
-LEFT JOIN school_rag.evaluation_questions AS q ON q.dataset_id = d.dataset_id
+FROM school_rag.eval_datasets AS d
+LEFT JOIN school_rag.eval_questions AS q ON q.dataset_id = d.dataset_id
 LEFT JOIN school_rag.gold_evidence AS g ON g.question_id = q.question_id
 GROUP BY d.dataset_id, d.dataset_name
 ORDER BY d.dataset_name;
@@ -21,8 +21,8 @@ ORDER BY evidence_count DESC;
 -- Q3 Zásadní školní JOIN: téma -> otázka -> dokument -> stránky.
 SELECT d.dataset_name, q.external_question_id, q.topic,
        doc.source_filename, g.page_number, g.fragment
-FROM school_rag.evaluation_datasets AS d
-JOIN school_rag.evaluation_questions AS q ON q.dataset_id = d.dataset_id
+FROM school_rag.eval_datasets AS d
+JOIN school_rag.eval_questions AS q ON q.dataset_id = d.dataset_id
 JOIN school_rag.gold_evidence AS g ON g.question_id = q.question_id
 JOIN school_rag.documents AS doc ON doc.document_id = g.document_id
 WHERE q.topic LIKE 'ospf%'
@@ -37,18 +37,24 @@ ORDER BY matching_fragments DESC, doc.source_filename, g.page_number;
 
 -- Q5 Zdokumentované historické srovnání, NIKOLI nově změřené.
 SELECT r.dataset_label, r.retriever, r.run_date, r.mrr,
-       r.hit_at_1, r.hit_at_3, r.hit_at_5, r.hit_at_8,
+       MAX(h.hit_rate) FILTER (WHERE h.k=1) AS hit_at_1,
+       MAX(h.hit_rate) FILTER (WHERE h.k=3) AS hit_at_3,
+       MAX(h.hit_rate) FILTER (WHERE h.k=5) AS hit_at_5,
+       MAX(h.hit_rate) FILTER (WHERE h.k=8) AS hit_at_8,
        r.record_kind
-FROM school_rag.evaluation_runs AS r
-WHERE r.record_kind = 'documented_baseline'
-ORDER BY r.dataset_label, r.retriever;
+FROM school_rag.eval_runs AS r
+LEFT JOIN school_rag.eval_hit_rates AS h
+  ON h.evaluation_run_id=r.evaluation_run_id
+WHERE r.record_kind='documented_baseline'
+GROUP BY r.evaluation_run_id
+ORDER BY r.dataset_label,r.retriever;
 
 -- Q6 Porovnání pouze běhů se stejným datasetem a se známým indexem.
 SELECT d.dataset_name, r.indexing_run_id,
        MAX(r.mrr) FILTER (WHERE r.retriever='bm25') AS bm25_mrr,
        MAX(r.mrr) FILTER (WHERE r.retriever='vector') AS vector_mrr
-FROM school_rag.evaluation_runs AS r
-JOIN school_rag.evaluation_datasets AS d ON d.dataset_id = r.dataset_id
+FROM school_rag.eval_runs AS r
+JOIN school_rag.eval_datasets AS d ON d.dataset_id = r.dataset_id
 WHERE r.record_kind='jsonl_run' AND r.indexing_run_id IS NOT NULL
 GROUP BY d.dataset_name, r.dataset_id, r.indexing_run_id
 HAVING COUNT(DISTINCT r.retriever) FILTER
@@ -58,18 +64,25 @@ HAVING COUNT(DISTINCT r.retriever) FILTER
 SELECT q.topic, r.retriever, COUNT(*) AS evaluated,
        AVG(res.reciprocal_rank) AS mean_rr,
        COUNT(*) FILTER (WHERE res.first_evidence_rank IS NULL) AS no_match
-FROM school_rag.evaluation_results AS res
-JOIN school_rag.evaluation_questions AS q ON q.question_id = res.question_id
-JOIN school_rag.evaluation_runs AS r ON r.evaluation_run_id = res.evaluation_run_id
+FROM school_rag.eval_results AS res
+JOIN school_rag.eval_questions AS q ON q.question_id = res.question_id
+JOIN school_rag.eval_runs AS r ON r.evaluation_run_id = res.evaluation_run_id
 GROUP BY q.topic,r.retriever
 ORDER BY mean_rr ASC, evaluated DESC;
 
 -- Q8 Kontrola úplnosti záznamu skutečně importovaných běhů.
 SELECT r.evaluation_run_id, r.retriever, r.question_count,
        COUNT(res.result_id) AS stored_results
-FROM school_rag.evaluation_runs AS r
-LEFT JOIN school_rag.evaluation_results AS res
+FROM school_rag.eval_runs AS r
+LEFT JOIN school_rag.eval_results AS res
     ON res.evaluation_run_id = r.evaluation_run_id
 WHERE r.record_kind='jsonl_run'
 GROUP BY r.evaluation_run_id
 HAVING COUNT(res.result_id) <> r.question_count;
+
+-- Q9 Normalizované Hit@k: jeden běh může mít libovolnou hodnotu k.
+SELECT r.dataset_label, r.retriever, h.k, h.hit_rate
+FROM school_rag.eval_hit_rates AS h
+JOIN school_rag.eval_runs AS r
+  ON r.evaluation_run_id=h.evaluation_run_id
+ORDER BY r.dataset_label, r.retriever, h.k;

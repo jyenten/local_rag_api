@@ -11,7 +11,7 @@ INSERT INTO school_rag.documents(source_filename) VALUES
     ('Cisco_OSPF_Configuration_Guide_2026.pdf')
 ON CONFLICT (source_filename) DO NOTHING;
 
-INSERT INTO school_rag.evaluation_datasets
+INSERT INTO school_rag.eval_datasets
   (dataset_name,source_path,source_git_blob_sha,source_commit_sha)
 VALUES
     ('dev', 'rag_api_project/eval/dev_questions.json', '7e38960197dcde252c8aa047ee626c645d8158e2', '1dfbaff02eed608b2c95a7c6d96d427b2239d6d0'),
@@ -67,11 +67,11 @@ VALUES
     ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'wccp_random_001', 'wccp-content-engine-cache-miss', 'What does a WCCP content engine do when requested information is absent from its local cache?'),
     ('random', '8a301867e0218dbfdde8d458b293c0b9863a2758', 'tracking_random_001', 'object-tracking-interface-ip-routing-state', 'Which three conditions must be met for a tracked interface IP routing state to be up?')
 )
-INSERT INTO school_rag.evaluation_questions
+INSERT INTO school_rag.eval_questions
   (dataset_id,external_question_id,topic,question_text)
 SELECT d.dataset_id,p.external_question_id,p.topic,p.question_text
 FROM payload AS p
-JOIN school_rag.evaluation_datasets AS d
+JOIN school_rag.eval_datasets AS d
   ON d.dataset_name=p.dataset_name
  AND d.source_git_blob_sha=p.source_git_blob_sha
 ON CONFLICT (dataset_id,external_question_id) DO NOTHING;
@@ -171,9 +171,9 @@ INSERT INTO school_rag.gold_evidence
   (question_id,document_id,evidence_ordinal,page_number,fragment)
 SELECT q.question_id,doc.document_id,p.evidence_ordinal,p.page_number,p.fragment
 FROM payload AS p
-JOIN school_rag.evaluation_datasets AS d
+JOIN school_rag.eval_datasets AS d
   ON d.dataset_name=p.dataset_name AND d.source_git_blob_sha=p.source_git_blob_sha
-JOIN school_rag.evaluation_questions AS q
+JOIN school_rag.eval_questions AS q
   ON q.dataset_id=d.dataset_id AND q.external_question_id=p.external_question_id
 JOIN school_rag.documents AS doc ON doc.source_filename=p.source_filename
 ON CONFLICT (question_id,evidence_ordinal,document_id,page_number,fragment) DO NOTHING;
@@ -182,27 +182,48 @@ ON CONFLICT (question_id,evidence_ordinal,document_id,page_number,fragment) DO N
 -- Původní dataset SHA-256 z té doby není doložen. Historický běh NESPOJUJEME
 -- FK na současnou revizi DEV/RANDOM; dataset_id zůstává NULL, dataset_label zachová typ.
 -- Hit@K pochází ze staršího reportu a není bez originálních JSONL reprodukováno.
-WITH raw(dataset_label,retriever,question_count,mrr,h1,h3,h5,h8) AS (
+WITH raw(dataset_label,retriever,question_count,mrr) AS (
 VALUES
-    ('dev', 'bm25', 20, 0.7171, 0.60, 0.80, 0.85, 0.90),
-    ('dev', 'vector', 20, 0.8321, 0.75, 0.90, 0.90, 0.95),
-    ('random', 'bm25', 25, 0.8133, 0.72, 0.92, 0.92, 0.92),
-    ('random', 'vector', 25, 0.6050, 0.44, 0.72, 0.80, 0.84)
+    ('dev', 'bm25', 20, 0.7171),
+    ('dev', 'vector', 20, 0.8321),
+    ('random', 'bm25', 25, 0.8133),
+    ('random', 'vector', 25, 0.6050)
 )
-INSERT INTO school_rag.evaluation_runs
+INSERT INTO school_rag.eval_runs
   (dataset_label,retriever,run_date,question_count,mrr,
-   hit_at_1,hit_at_3,hit_at_5,hit_at_8,
    record_kind,source_reference,provenance_note)
 SELECT r.dataset_label,r.retriever,DATE '2026-10-20',r.question_count,r.mrr,
-       r.h1,r.h3,r.h5,r.h8,'documented_baseline',
+       'documented_baseline',
        'docs/en/EVALUATION.md#en-8-historical-baseline-2026-10-20',
        'Historical summary only. Dataset revision unknown, dataset_id NULL. Original JSONL, PDF corpus and Chroma index absent; Hit@K not independently reproduced.'
 FROM raw AS r
 WHERE NOT EXISTS (
-  SELECT 1 FROM school_rag.evaluation_runs AS existing
+  SELECT 1 FROM school_rag.eval_runs AS existing
   WHERE existing.dataset_label=r.dataset_label
     AND existing.retriever=r.retriever
     AND existing.run_date=DATE '2026-10-20'
     AND existing.record_kind='documented_baseline'
 );
+
+-- 16 doložených hodnot Hit@k nyní tvoří samostatné řádky navázané na běh.
+-- Seeding je opakovatelný, původní hodnoty se nepřepisují při konfliktu.
+WITH raw(dataset_label,retriever,h1,h3,h5,h8) AS (
+VALUES
+    ('dev', 'bm25', 0.60, 0.80, 0.85, 0.90),
+    ('dev', 'vector', 0.75, 0.90, 0.90, 0.95),
+    ('random', 'bm25', 0.72, 0.92, 0.92, 0.92),
+    ('random', 'vector', 0.44, 0.72, 0.80, 0.84)
+)
+INSERT INTO school_rag.eval_hit_rates(evaluation_run_id,k,hit_rate)
+SELECT r.evaluation_run_id, h.k, h.hit_rate
+FROM raw AS metrics
+JOIN school_rag.eval_runs AS r
+  ON r.dataset_label=metrics.dataset_label AND r.retriever=metrics.retriever
+ AND r.run_date=DATE '2026-10-20'
+ AND r.record_kind='documented_baseline'
+ AND r.source_reference='docs/en/EVALUATION.md#en-8-historical-baseline-2026-10-20'
+CROSS JOIN LATERAL (VALUES
+  (1, metrics.h1), (3, metrics.h3), (5, metrics.h5), (8, metrics.h8)
+) AS h(k,hit_rate)
+ON CONFLICT (evaluation_run_id,k) DO NOTHING;
 COMMIT;

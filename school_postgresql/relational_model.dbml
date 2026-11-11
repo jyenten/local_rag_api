@@ -1,4 +1,4 @@
-// Úplný sedmitabulkový relační model pro dbdiagram.io.
+// Úplný osmitabulkový relační model pro dbdiagram.io.
 // Logické typy a atributy odpovídají 01_schema.sql. SQL je autoritou pro CHECK,
 // nullable composite FK a výpočet reciprocal_rank.
 Table school_rag.documents {
@@ -7,7 +7,7 @@ Table school_rag.documents {
   file_sha256 char(64)
   registered_at timestamptz [not null]
 }
-Table school_rag.evaluation_datasets {
+Table school_rag.eval_datasets {
   dataset_id bigint [pk, increment]
   dataset_name text [not null]
   source_path text [not null]
@@ -16,7 +16,7 @@ Table school_rag.evaluation_datasets {
   imported_at timestamptz [not null]
   indexes {(dataset_name, source_git_blob_sha) [unique]}
 }
-Table school_rag.evaluation_questions {
+Table school_rag.eval_questions {
   question_id bigint [pk, increment]
   dataset_id bigint [not null]
   external_question_id text [not null]
@@ -44,7 +44,7 @@ Table school_rag.indexing_runs {
   chunk_count integer
   notes text
 }
-Table school_rag.evaluation_runs {
+Table school_rag.eval_runs {
   evaluation_run_id bigint [pk, increment]
   dataset_id bigint
   dataset_label text [not null]
@@ -58,10 +58,6 @@ Table school_rag.evaluation_runs {
   git_dirty boolean
   dataset_sha256 char(64)
   mrr numeric(8,6)
-  hit_at_1 numeric(8,6)
-  hit_at_3 numeric(8,6)
-  hit_at_5 numeric(8,6)
-  hit_at_8 numeric(8,6)
   latency_mean_ms numeric(12,3)
   latency_p50_ms numeric(12,3)
   latency_p95_ms numeric(12,3)
@@ -70,7 +66,13 @@ Table school_rag.evaluation_runs {
   provenance_note text
   indexes {(evaluation_run_id, dataset_id) [unique]}
 }
-Table school_rag.evaluation_results {
+Table school_rag.eval_hit_rates {
+  evaluation_run_id bigint [not null]
+  k integer [not null]
+  hit_rate numeric(8,6) [not null]
+  indexes {(evaluation_run_id, k) [pk]}
+}
+Table school_rag.eval_results {
   result_id bigint [pk, increment]
   evaluation_run_id bigint [not null]
   dataset_id bigint [not null]
@@ -81,9 +83,11 @@ Table school_rag.evaluation_results {
 }
 // Vztahy 1:N (vazby na auditní běh/dataset mohou být nullable).
 Ref: school_rag.documents.document_id < school_rag.gold_evidence.document_id
-Ref: school_rag.evaluation_datasets.dataset_id < school_rag.evaluation_questions.dataset_id
-Ref: school_rag.evaluation_questions.question_id < school_rag.gold_evidence.question_id
-Ref: school_rag.evaluation_datasets.dataset_id < school_rag.evaluation_runs.dataset_id
-Ref: school_rag.indexing_runs.indexing_run_id < school_rag.evaluation_runs.indexing_run_id
-Ref: school_rag.evaluation_runs.evaluation_run_id < school_rag.evaluation_results.evaluation_run_id
-Ref: school_rag.evaluation_questions.question_id < school_rag.evaluation_results.question_id
+Ref: school_rag.eval_datasets.dataset_id < school_rag.eval_questions.dataset_id
+Ref: school_rag.eval_questions.question_id < school_rag.gold_evidence.question_id
+Ref: school_rag.eval_datasets.dataset_id < school_rag.eval_runs.dataset_id
+Ref: school_rag.indexing_runs.indexing_run_id < school_rag.eval_runs.indexing_run_id
+Ref: school_rag.eval_runs.evaluation_run_id < school_rag.eval_results.evaluation_run_id
+Ref: school_rag.eval_questions.question_id < school_rag.eval_results.question_id
+
+Ref: school_rag.eval_runs.evaluation_run_id < school_rag.eval_hit_rates.evaluation_run_id

@@ -1,4 +1,4 @@
--- Školní PostgreSQL model, 7 tabulek (oddělený od provozního RAG).
+-- Školní PostgreSQL model, 8 tabulek (oddělený od provozního RAG).
 -- Spouštět v NOVÉ databázi; tento skript neprovádí DROP.
 BEGIN;
 CREATE SCHEMA school_rag;
@@ -14,7 +14,7 @@ CREATE TABLE school_rag.documents (
     )
 );
 
-CREATE TABLE school_rag.evaluation_datasets (
+CREATE TABLE school_rag.eval_datasets (
     dataset_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     dataset_name text NOT NULL CHECK (dataset_name IN ('dev','random','test')),
     source_path text NOT NULL,
@@ -29,9 +29,9 @@ CREATE TABLE school_rag.evaluation_datasets (
     )
 );
 
-CREATE TABLE school_rag.evaluation_questions (
+CREATE TABLE school_rag.eval_questions (
     question_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    dataset_id bigint NOT NULL REFERENCES school_rag.evaluation_datasets(dataset_id),
+    dataset_id bigint NOT NULL REFERENCES school_rag.eval_datasets(dataset_id),
     external_question_id text NOT NULL,
     topic text NOT NULL,
     question_text text NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE school_rag.evaluation_questions (
 
 CREATE TABLE school_rag.gold_evidence (
     evidence_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    question_id bigint NOT NULL REFERENCES school_rag.evaluation_questions(question_id),
+    question_id bigint NOT NULL REFERENCES school_rag.eval_questions(question_id),
     document_id bigint NOT NULL REFERENCES school_rag.documents(document_id),
     evidence_ordinal integer NOT NULL CHECK (evidence_ordinal > 0),
     page_number integer NOT NULL CHECK (page_number > 0),
@@ -78,9 +78,9 @@ CREATE TABLE school_rag.indexing_runs (
 );
 -- Chunks a embeddingy zůstávají v ChromaDB; sem zapisujeme jen audit běhů.
 
-CREATE TABLE school_rag.evaluation_runs (
+CREATE TABLE school_rag.eval_runs (
     evaluation_run_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    dataset_id bigint REFERENCES school_rag.evaluation_datasets(dataset_id),
+    dataset_id bigint REFERENCES school_rag.eval_datasets(dataset_id),
     dataset_label text NOT NULL CHECK (dataset_label IN ('dev','random','test')),
     indexing_run_id bigint REFERENCES school_rag.indexing_runs(indexing_run_id),
     retriever text NOT NULL
@@ -93,10 +93,6 @@ CREATE TABLE school_rag.evaluation_runs (
     git_dirty boolean,
     dataset_sha256 char(64),
     mrr numeric(8,6),
-    hit_at_1 numeric(8,6),
-    hit_at_3 numeric(8,6),
-    hit_at_5 numeric(8,6),
-    hit_at_8 numeric(8,6),
     latency_mean_ms numeric(12,3),
     latency_p50_ms numeric(12,3),
     latency_p95_ms numeric(12,3),
@@ -106,18 +102,12 @@ CREATE TABLE school_rag.evaluation_runs (
     provenance_note text,
     CONSTRAINT runs_dataset_pair UNIQUE (evaluation_run_id,dataset_id),
     CONSTRAINT runs_dataset_name_fk FOREIGN KEY (dataset_id,dataset_label)
-       REFERENCES school_rag.evaluation_datasets(dataset_id,dataset_name),
+       REFERENCES school_rag.eval_datasets(dataset_id,dataset_name),
     CONSTRAINT runs_historical_dataset_guard CHECK (
         (record_kind='documented_baseline' AND dataset_id IS NULL)
         OR (record_kind='jsonl_run' AND dataset_id IS NOT NULL)
     ),
-    CONSTRAINT runs_metrics_range CHECK (
-        (mrr IS NULL OR mrr BETWEEN 0 AND 1)
-        AND (hit_at_1 IS NULL OR hit_at_1 BETWEEN 0 AND 1)
-        AND (hit_at_3 IS NULL OR hit_at_3 BETWEEN 0 AND 1)
-        AND (hit_at_5 IS NULL OR hit_at_5 BETWEEN 0 AND 1)
-        AND (hit_at_8 IS NULL OR hit_at_8 BETWEEN 0 AND 1)
-    ),
+    CONSTRAINT runs_metrics_range CHECK (mrr IS NULL OR mrr BETWEEN 0 AND 1),
     CONSTRAINT runs_latency_nonnegative CHECK (
         (latency_mean_ms IS NULL OR latency_mean_ms >= 0)
         AND (latency_p50_ms IS NULL OR latency_p50_ms >= 0)
@@ -134,7 +124,17 @@ CREATE TABLE school_rag.evaluation_runs (
     )
 );
 
-CREATE TABLE school_rag.evaluation_results (
+-- Jeden běh má libovolné množství metrik Hit@k (jedna hodnota k na řádek).
+-- Složený PK brání duplicitám; FK odkazuje na konkrétní evaluační běh.
+CREATE TABLE school_rag.eval_hit_rates (
+    evaluation_run_id bigint NOT NULL
+        REFERENCES school_rag.eval_runs(evaluation_run_id) ON DELETE CASCADE,
+    k integer NOT NULL CHECK (k > 0),
+    hit_rate numeric(8,6) NOT NULL CHECK (hit_rate BETWEEN 0 AND 1),
+    CONSTRAINT eval_hit_rates_pk PRIMARY KEY (evaluation_run_id,k)
+);
+
+CREATE TABLE school_rag.eval_results (
     result_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     evaluation_run_id bigint NOT NULL,
     dataset_id bigint NOT NULL,
@@ -148,19 +148,19 @@ CREATE TABLE school_rag.evaluation_results (
     CONSTRAINT results_run_question_unique UNIQUE (evaluation_run_id,question_id),
     CONSTRAINT results_run_dataset_fk
         FOREIGN KEY (evaluation_run_id,dataset_id)
-        REFERENCES school_rag.evaluation_runs(evaluation_run_id,dataset_id),
+        REFERENCES school_rag.eval_runs(evaluation_run_id,dataset_id),
     CONSTRAINT results_question_dataset_fk
         FOREIGN KEY (question_id,dataset_id)
-        REFERENCES school_rag.evaluation_questions(question_id,dataset_id)
+        REFERENCES school_rag.eval_questions(question_id,dataset_id)
 );
 -- Composite FKs brání omylu: výsledek musí patřit ke stejnému datasetu
 -- jako konkrétní vyhodnocovací běh. dataset_id zde slouží k integritě.
 
 CREATE INDEX idx_questions_dataset_topic
-    ON school_rag.evaluation_questions(dataset_id,topic);
+    ON school_rag.eval_questions(dataset_id,topic);
 CREATE INDEX idx_gold_document ON school_rag.gold_evidence(document_id);
 CREATE INDEX idx_runs_dataset_retriever_date
-    ON school_rag.evaluation_runs(dataset_id,retriever,run_date DESC);
-CREATE INDEX idx_runs_indexing ON school_rag.evaluation_runs(indexing_run_id);
-CREATE INDEX idx_results_question ON school_rag.evaluation_results(question_id);
+    ON school_rag.eval_runs(dataset_id,retriever,run_date DESC);
+CREATE INDEX idx_runs_indexing ON school_rag.eval_runs(indexing_run_id);
+CREATE INDEX idx_results_question ON school_rag.eval_results(question_id);
 COMMIT;
