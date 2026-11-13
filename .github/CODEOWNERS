@@ -31,3 +31,8 @@
 
 # Evaluation governance workflow.
 /.github/workflows/eval-governance.yml @jyenten
+# Dev-loop instruction entry points and owner-approved operating policy.
+/AGENTS.md @jyenten
+/experiments/dev_loop/AGENTS.md @jyenten
+/docs/cs/DEV_LOOP_POLICY.md @jyenten
+/docs/en/DEV_LOOP_POLICY.md @jyenten

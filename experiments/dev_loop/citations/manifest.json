@@ -1,0 +1,15 @@
+{
+  "repository": "jyenten/local_rag_api",
+  "source_commit": "ce9a088373d7dc2ad005af07c4ab09cb2df7b9fd",
+  "target": "rag_api_project/app/retrieval.py",
+  "source_sha256": "389455576b1967e49c04d479b2077dd39d0532cbaf3b2bf35d882434474c476a",
+  "files": {},
+  "fixed_test_target": "rag_api_project/tests/test_retrieval_citations.py",
+  "fixed_test_sha256": "87753d70bf258d882ff2ff82e0cfff9814b651d472d025a6f7b46d9ae1fe43ea",
+  "allowed_methods": [
+    "Retriever.rerank_lines",
+    "Retriever.build_context"
+  ],
+  "baseline_test_count": 3,
+  "regression_test_count": 15
+}

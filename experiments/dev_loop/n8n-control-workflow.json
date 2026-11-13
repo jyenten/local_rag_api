@@ -1,0 +1,381 @@
+{
+  "name": "Local RAG — ovládání, kontrola a schválení",
+  "active": false,
+  "nodes": [
+    {
+      "id": "control-form",
+      "name": "Ovládání úloh",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.4,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "authentication": "basicAuth",
+        "formTitle": "Local RAG — ovládání úloh",
+        "formDescription": "catalog = seznam úloh; status = stav; report = diff a důkazy; generate = návrh bez publikace; publish = draft PR po schválení. BM25 je historický; retrieval-citation-provenance opravuje přiřazení zdrojů. Pro první kontrolu zvol catalog.",
+        "formFields": {
+          "values": [
+            {
+              "fieldName": "action",
+              "fieldLabel": "Akce",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "catalog"
+                  },
+                  {
+                    "option": "status"
+                  },
+                  {
+                    "option": "report"
+                  },
+                  {
+                    "option": "generate"
+                  },
+                  {
+                    "option": "publish"
+                  }
+                ]
+              },
+              "defaultValue": "catalog",
+              "requiredField": true
+            },
+            {
+              "fieldName": "task_id",
+              "fieldLabel": "Registrovaná úloha",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "bm25-tokenize-once"
+                  },
+                  {
+                    "option": "retrieval-citation-provenance"
+                  }
+                ]
+              },
+              "defaultValue": "bm25-tokenize-once",
+              "requiredField": true
+            },
+            {
+              "fieldName": "request_id",
+              "fieldLabel": "ID běhu / úlohy (UUID)",
+              "fieldType": "text",
+              "placeholder": "UUID z katalogu nebo předchozího výsledku",
+              "requiredField": false
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "path": "local-rag-control",
+          "buttonLabel": "Zobrazit / připravit plán",
+          "appendAttribution": false
+        }
+      },
+      "webhookId": "57d56704-90ac-4051-9775-e6e738ea0b56"
+    },
+    {
+      "id": "preview",
+      "name": "Zkontrolovat plán",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8766/control/preview",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: $json.action, task_id: $json.task_id, request_id: ($json.request_id || '').trim() || ($json.action === 'generate' ? '00000000-0000-4000-8000-' + String($execution.id).padStart(12, '0') : null)}) }}",
+        "options": {
+          "timeout": 900000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "retryOnFail": false
+    },
+    {
+      "id": "needs-approval",
+      "name": "Vyžaduje schválení?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition",
+              "leftValue": "={{ $json.requires_approval }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "review",
+      "name": "Prohlédnout a schválit",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.4,
+      "position": [
+        840,
+        -140
+      ],
+      "parameters": {
+        "operation": "page",
+        "defineForm": "fields",
+        "formFields": {
+          "values": [
+            {
+              "fieldName": "decision",
+              "fieldLabel": "Rozhodnutí",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Zrušit"
+                  },
+                  {
+                    "option": "Schválit"
+                  }
+                ]
+              },
+              "defaultValue": "Zrušit",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "formTitle": "Kontrola konkrétního plánu",
+          "formDescription": "={{ '<p>Schvaluješ pouze uvedenou akci. Generate nevytváří PR; publish znovu ověří uložený návrh a předá draft PR. Merge není povolen.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') + '</pre>' : '') }}",
+          "buttonLabel": "Potvrdit rozhodnutí"
+        },
+        "limitWaitTime": true,
+        "limitType": "afterTimeInterval",
+        "resumeAmount": 10,
+        "resumeUnit": "minutes"
+      },
+      "webhookId": "820a526e-240a-4e2c-8537-4090c6064ba9"
+    },
+    {
+      "id": "approved",
+      "name": "Schváleno?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        -140
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "Schválit",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "execute",
+      "name": "Provést schválenou akci",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8766/control/execute",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: $('Zkontrolovat plán').first().json.action, task_id: $('Zkontrolovat plán').first().json.task_id, request_id: $('Zkontrolovat plán').first().json.request_id, approved: true, plan_sha256: $('Zkontrolovat plán').first().json.plan_sha256}) }}",
+        "options": {
+          "timeout": 900000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "retryOnFail": false
+    },
+    {
+      "id": "result",
+      "name": "Výsledek a report",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.4,
+      "position": [
+        1680,
+        120
+      ],
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Výsledek controlleru",
+        "completionMessage": "={{ '<p>Stav a ID najdeš níže. Pro další kontrolu otevři formulář znovu a zvol status nebo report se stejným UUID. Zelený HTTP uzel není schválení merge.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') + '</pre>' : '') }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "webhookId": "c740dc6c-5077-4930-8eeb-8d67600f935d"
+    },
+    {
+      "id": "cancel",
+      "name": "Zrušeno bez provedení",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.4,
+      "position": [
+        1400,
+        -280
+      ],
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Akce zrušena",
+        "completionMessage": "Návrh plánu nic nezměnil. Generování ani publikace nebyly spuštěné.",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "webhookId": "6125ba0b-7e1a-4338-a5f9-10003313dcad"
+    }
+  ],
+  "connections": {
+    "Ovládání úloh": {
+      "main": [
+        [
+          {
+            "node": "Zkontrolovat plán",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zkontrolovat plán": {
+      "main": [
+        [
+          {
+            "node": "Vyžaduje schválení?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vyžaduje schválení?": {
+      "main": [
+        [
+          {
+            "node": "Prohlédnout a schválit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Výsledek a report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prohlédnout a schválit": {
+      "main": [
+        [
+          {
+            "node": "Schváleno?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schváleno?": {
+      "main": [
+        [
+          {
+            "node": "Provést schválenou akci",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Zrušeno bez provedení",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Provést schválenou akci": {
+      "main": [
+        [
+          {
+            "node": "Výsledek a report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "executionTimeout": 2700,
+    "timezone": "Europe/Prague"
+  },
+  "pinData": {},
+  "tags": []
+}

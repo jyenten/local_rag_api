@@ -4,10 +4,16 @@ on:
   push:
     paths:
       - 'experiments/**'
+      - 'AGENTS.md'
+      - 'docs/cs/DEV_LOOP_POLICY.md'
+      - 'docs/en/DEV_LOOP_POLICY.md'
       - '.github/workflows/dev-loop.yml'
   pull_request:
     paths:
       - 'experiments/**'
+      - 'AGENTS.md'
+      - 'docs/cs/DEV_LOOP_POLICY.md'
+      - 'docs/en/DEV_LOOP_POLICY.md'
       - '.github/workflows/dev-loop.yml'
 
 permissions:
@@ -29,3 +35,38 @@ jobs:
         run: python -m pip install -r experiments/dev_loop/requirements-report.txt
       - name: Test controller without model calls or publication credentials
         run: python -m pytest experiments/dev_loop/tests -q -p no:cacheprovider
+
+  windows-service:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Install controller dependencies
+        run: python -m pip install -r experiments/dev_loop/requirements.txt
+      - name: Verify stable profile and PowerShell launcher
+        run: python -m pytest experiments/dev_loop/tests/test_service.py -q -p no:cacheprovider
+
+  citation-checker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Install controller dependencies
+        run: python -m pip install -r experiments/dev_loop/requirements.txt
+      - name: Build fixed offline citation checker
+        run: docker build -t local-rag-citation-check:1 experiments/dev_loop/citations
+      - name: Verify original fails acceptance and reference repair passes offline
+        env:
+          DEV_LOOP_CITATION_DOCKER_TESTS: '1'
+        run: python -m pytest experiments/dev_loop/tests/test_citations.py -k test_docker_citation_checker -q -p no:cacheprovider

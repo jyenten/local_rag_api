@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!requirements.txt
+!checks/
+!checks/test_retrieval_citations.py
+!probe.py
+!container_entry.py
