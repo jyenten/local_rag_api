@@ -26,13 +26,13 @@ LOGGER = logging.getLogger(__name__)
 
 class ControlRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    action: Literal['catalog', 'generate', 'status', 'report', 'publish']
+    action: Literal['catalog', 'generate', 'autonomous', 'status', 'report', 'publish']
     task_id: Literal['bm25-tokenize-once', 'retrieval-citation-provenance'] = TASK_ID
     request_id: UUID | None = None
 
 
 class ApprovedRequest(ControlRequest):
-    action: Literal['generate', 'publish']
+    action: Literal['generate', 'autonomous', 'publish']
     request_id: UUID
     approved: StrictBool
     plan_sha256: str = Field(pattern=r'^[0-9a-f]{64}$')
@@ -127,7 +127,7 @@ class ControlPanel:
             plan.update(worker_allowed_files=[task.target], editable_methods=task.manifest['allowed_methods'],
                         fixed_files_sha256={name: digest(source) for name, source in task.fixed_files.items()},
                         acceptance_test_count=task.manifest['regression_test_count'])
-        if body.action == 'generate':
+        if body.action in {'generate', 'autonomous'}:
             if request_id in self.registered:
                 return self.blocked(body, 'SAVED_RUN_CANNOT_BE_REGENERATED')
             if self.jobs is None or self.jobs.task_id != body.task_id:
@@ -137,11 +137,15 @@ class ControlPanel:
             _, state_dir, run_dir = self.jobs.paths(request_id)
             if state_dir.exists():
                 state = self.jobs.status(request_id)
-                if state['status'] in {'pr_ready', 'generation_failed', 'generation_error', 'review_ready'}:
+                if state['status'] in {'pr_ready', 'generation_failed', 'generation_error'}:
+                    return self.envelope(body, 'view', result=state)
+                if body.action == 'generate' and state['status'] == 'review_ready':
                     return self.envelope(body, 'view', result=state)
                 if not (run_dir / 'result.json').is_file():
                     return self.blocked(body, 'JOB_ACTIVE_OR_INTERRUPTED')
-                self.jobs.cached_report(run_dir / 'result.json', request_id)
+                report = self.jobs.cached_report(run_dir / 'result.json', request_id)
+                if body.action == 'autonomous' and report['status'] != 'review_ready':
+                    return self.blocked(body, 'SAVED_GENERATION_NOT_REVIEW_READY')
             else:
                 if self.jobs.used >= self.jobs.max_new_jobs:
                     return self.blocked(body, 'NEW_JOB_ALLOWANCE_CONSUMED')
@@ -160,7 +164,17 @@ class ControlPanel:
                     return self.blocked(body, 'SOURCE_OR_REMOTE_PREFLIGHT_BLOCKED')
             plan.update(source_commit=self.jobs.revision, source_sha256=digest(self.jobs.original),
                         new_jobs_remaining=self.jobs.max_new_jobs - self.jobs.used,
-                        cached_generation=state_dir.exists(), publication='separate_approval_required')
+                        cached_generation=state_dir.exists(),
+                        publication=('automatic_draft_after_acceptance' if body.action == 'autonomous'
+                                     else 'separate_approval_required'))
+            if body.action == 'autonomous':
+                plan.update(base='main', draft=True, docker_recheck_required=True,
+                            max_worker_attempts=3 if not state_dir.exists() else 0,
+                            generation_required=not state_dir.exists())
+                if state_dir.exists():
+                    # Recovery authorizes only this validated candidate, never another model run.
+                    bundle = load_bundle(run_dir)
+                    plan.update(candidate_sha256=digest(bundle.candidate))
         else:
             directory, managed = self.directory(request_id, body.task_id)
             bundle = load_bundle(directory)
@@ -172,7 +186,9 @@ class ControlPanel:
                         source_sha256=digest(bundle.original), model_invocations=0)
         return self.envelope(body, 'approval_required', requires_approval=True,
                              plan=plan, plan_sha256=plan_hash(plan),
-                             result=self.report(request_id, body.task_id) if body.action == 'publish' else None)
+                             result=self.report(request_id, body.task_id)
+                             if body.action == 'publish' or (body.action == 'autonomous' and state_dir.exists())
+                             else None)
 
     def execute(self, body):
         if body.approved is not True:
@@ -185,6 +201,8 @@ class ControlPanel:
         request_id = str(body.request_id)
         if body.action == 'generate':
             result = self.jobs.generate(request_id)
+        elif body.action == 'autonomous':
+            result = self.jobs.execute(request_id)
         else:
             directory, managed = self.directory(request_id, body.task_id)
             if managed:
@@ -193,7 +211,10 @@ class ControlPanel:
                 from .publication_api import public_receipt
 
                 result = public_receipt(self.publisher(directory), request_id, body.task_id)
-        return self.envelope(body, 'completed', result=result)
+        values = {'result': result}
+        if body.action == 'autonomous' and result['status'] == 'pr_ready':
+            values['report'] = self.report(request_id, body.task_id)
+        return self.envelope(body, 'completed', **values)
 
 
 def install_control_routes(app, runs_root, registered, publisher, jobs, lock):

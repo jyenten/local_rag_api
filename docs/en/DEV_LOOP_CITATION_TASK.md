@@ -42,7 +42,7 @@ cd D:\AI_roadmap_n8n_publication
 git status -sb
 git fetch origin
 if ($LASTEXITCODE -ne 0) { throw "Git fetch failed." }
-git switch --detach origin/feat/dev-loop-n8n-control
+git switch --detach origin/feat/dev-loop-autonomous-prototype
 if ($LASTEXITCODE -ne 0) { throw "Branch switch failed." }
 ```
 
@@ -76,6 +76,11 @@ at the next service start, not by altering an already running process.
 
 ## One live run through n8n
 
+For a cycle without intermediate steps, use `autonomous` in the
+[control guide](DEV_LOOP_N8N_CONTROL.md#autonomous-prototype-one-complete-cycle).
+One plan approval covers generation, tests, repairs and the draft PR. The steps
+below preserve separate approval of generation and publication.
+
 1. Update/import `n8n-control-workflow.json` and select the same credentials. The
    fixed `retrieval-citation-provenance` option is added; no secrets are exported.
 2. `catalog`: the new task must show `generation_configured: true`. Allowed historic
@@ -93,7 +98,8 @@ at the next service start, not by altering an already running process.
 
 After timeout inspect `status` with the same UUID; do not evade it with another
 ID, restart or higher allowance. The old combined `/jobs` endpoint is disabled
-for this selected task (410); use the separate reviewed control workflow. Cancel
+for this selected task (410); use the control workflow with an exact plan
+(`autonomous` or separate `generate` / `publish`). Cancel
 invokes neither model nor publisher. Approval waits at most 10 minutes, the HTTP
 action at most 900 seconds, and the workflow has a 45-minute overall limit.
 

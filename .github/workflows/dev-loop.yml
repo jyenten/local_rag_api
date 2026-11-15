@@ -70,3 +70,7 @@ jobs:
         env:
           DEV_LOOP_CITATION_DOCKER_TESTS: '1'
         run: python -m pytest experiments/dev_loop/tests/test_citations.py -k test_docker_citation_checker -q -p no:cacheprovider
+      - name: Verify autonomous HTTP cycle with repairs and publication recheck
+        env:
+          DEV_LOOP_CITATION_DOCKER_TESTS: '1'
+        run: python -m pytest experiments/dev_loop/tests/test_autonomous_control.py -k test_docker_autonomous_cycle -q -p no:cacheprovider

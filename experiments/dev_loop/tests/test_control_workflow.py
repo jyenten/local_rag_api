@@ -104,3 +104,28 @@ def test_report_and_approval_render_untrusted_code_as_text_with_readable_diff():
         rendered = js(expression, data)
         assert '<script>' not in rendered and '&lt;script&gt;' in rendered
         assert 'Diff před / po' in rendered and '<br>+ safe code<br>' in rendered
+
+
+def test_autonomous_option_uses_one_bound_plan_and_displays_its_final_report_and_pr():
+    trigger = NODES['Ovládání úloh']['parameters']
+    fields = {f['fieldName']: f for f in trigger['formFields']['values']}
+    assert 'autonomous' in [item['option'] for item in fields['action']['fieldOptions']['values']]
+    assert fields['task_id']['defaultValue'] == 'retrieval-citation-provenance'
+    body = json.loads(js(NODES['Zkontrolovat plán']['parameters']['jsonBody'],
+        {'action': 'autonomous', 'task_id': 'retrieval-citation-provenance'}))
+    assert body['action'] == 'autonomous' and body['request_id'].endswith('000071')
+    plan = {**body, 'plan_sha256': 'a' * 64}
+    executed = json.loads(js(NODES['Provést schválenou akci']['parameters']['jsonBody'],
+                             {'decision': 'Schválit'}, preview=plan))
+    assert executed == {**plan, 'approved': True}
+    # The only mutation node goes straight to the ending: no second publication approval.
+    assert next_nodes('Provést schválenou akci') == ['Výsledek a report']
+    message = NODES['Výsledek a report']['parameters']['completionMessage']
+    data = {'result': {'status': 'pr_ready', 'publication': {
+        'pull_request': 'https://github.com/jyenten/local_rag_api/pull/123'}},
+        'report': {'diff': '<script>x</script>\n+ verified\n'}}
+    rendered = js(message, data)
+    assert 'href="https://github.com/jyenten/local_rag_api/pull/123"' in rendered
+    assert '&lt;script&gt;' in rendered and '<br>+ verified<br>' in rendered
+    data['result']['publication']['pull_request'] = 'javascript:alert(1)'
+    assert '<a href=' not in js(message, data)

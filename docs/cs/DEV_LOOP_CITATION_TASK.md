@@ -41,7 +41,7 @@ cd D:\AI_roadmap_n8n_publication
 git status -sb
 git fetch origin
 if ($LASTEXITCODE -ne 0) { throw "Git fetch selhal." }
-git switch --detach origin/feat/dev-loop-n8n-control
+git switch --detach origin/feat/dev-loop-autonomous-prototype
 if ($LASTEXITCODE -ne 0) { throw "Přepnutí větve selhalo." }
 ```
 
@@ -74,6 +74,11 @@ Výběr se projeví až při příštím spuštění služby, nikoli změnou bě
 
 ## Jeden skutečný běh přes n8n
 
+Pro průchod bez mezikroků použij `autonomous` podle
+[ovládacího návodu](DEV_LOOP_N8N_CONTROL.md#autonomní-prototyp-jeden-celý-průchod).
+Jedno schválení plánu pokryje generování, testy, případné opravy i draft PR.
+Následující postup zachovává možnost ručně oddělit generování a publikaci.
+
 1. Aktualizuj/importuj `n8n-control-workflow.json`, vyber stejné credentials. Přibyla
    pevná volba `retrieval-citation-provenance`; import žádné tajemství neobsahuje.
 2. `catalog`: nová úloha musí mít `generation_configured: true`. Historický BM25
@@ -90,7 +95,8 @@ Výběr se projeví až při příštím spuštění služby, nikoli změnou bě
 
 Při timeoutu nejdřív `status` se stejným UUID; nepoužívej náhradní ID, restart ani
 vyšší limit k obcházení stavu. Starý kombinovaný `/jobs` endpoint je při výběru
-této úlohy vypnutý (410); používá se pouze oddělený schvalovaný control workflow.
+této úlohy vypnutý (410); používej control workflow s přesným plánem (`autonomous`
+nebo oddělené `generate` / `publish`).
 Zrušení plánu nepouští model ani publikaci. Schvalovací formulář čeká nejvýše 10
 minut, HTTP akce 900 sekund a workflow má celkový limit 45 minut.
 
