@@ -302,16 +302,11 @@ class Retriever:
         question: str, 
         lines: list[RetrievedLine]
         ) -> list[RetrievedLine]:
-        if not lines:
-            return[]
-        
-        pairs = [(question, line.text)
-                  for line in lines
-            ]
+        if not lines or self.settings.max_context_lines <= 0:
+            return []
 
-        
+        pairs = [(question, line.text) for line in lines]
         scores = self.reranker.predict(pairs)
-
         ranked = []
 
         for model_score, line in zip(scores, lines):
@@ -319,17 +314,23 @@ class Retriever:
             combined_score = float(model_score) + heuristic_score
             ranked.append((combined_score, line))
 
-        ranked.sort(key=lambda item: item[0], reverse=True)
-        
-        best_score = ranked[0][0]
-        minimum_score = best_score * 0.5
+        if not ranked:
+            return []
 
-        selected_lines = [
-            line for score, line in ranked
-            if score >= minimum_score
-        ]
-        
-        return selected_lines[: self.settings.max_context_lines]
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        best_score = ranked[0][0]
+        minimum_score = min(best_score, best_score * 0.5)
+
+        selected_lines = []
+        seen: set[str] = set()
+        for score, line in ranked:
+            if score >= minimum_score and line.text not in seen:
+                selected_lines.append(line)
+                seen.add(line.text)
+                if len(selected_lines) >= self.settings.max_context_lines:
+                    break
+
+        return selected_lines
     
 
 
@@ -341,7 +342,7 @@ class Retriever:
         documents, distances, metadatas = self.search(question)
 
         candidate_lines = collect_candidate_lines(
-            question, 
+            question,
             documents,
             metadatas,
         )
@@ -351,17 +352,11 @@ class Retriever:
         context = "\n".join(line.text for line in selected_lines)
 
         if not context:
-            context = select_relevant_lines(
+            selected_lines = collect_candidate_lines(
                 question,
                 documents,
-                self.settings.max_context_lines
-            )
-            fallback_metadata = metadatas[0] if metadatas else {}
-            selected_lines = [
-                RetrievedLine(
-                    text=line,
-                    metadata=fallback_metadata,
-                )
-                for line in context.splitlines()
-            ]
+                metadatas,
+            )[: max(0, self.settings.max_context_lines)]
+            context = "\n".join(line.text for line in selected_lines)
+
         return context, selected_lines, documents, distances, metadatas
