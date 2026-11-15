@@ -20,6 +20,7 @@ MANIFEST = json.loads((HERE / 'manifest.json').read_text(encoding='utf-8'))
 TARGET = MANIFEST['target']
 TASK_ID = 'retrieval-citation-provenance'
 CHECKER_IMAGE = 'local-rag-citation-check:1'
+WORKER_TIMEOUT_S = 180  # Full-module output needs a separate bounded generation window.
 PROBE_KEYS = {'fallback_source_and_page_correct', 'negative_best_retained'}
 INSTRUCTIONS = (
     'question.py contains the COMPLETE REAL app/retrieval.py module. Change ONLY the bodies of '
@@ -103,7 +104,7 @@ class CitationWorker(DockerCodexWorker):
     name = 'codex-real-citations-docker'
 
     def __init__(self, original):
-        super().__init__()
+        super().__init__(timeout=WORKER_TIMEOUT_S)
         self.original = original
         self.task = replace(self.task, instructions=INSTRUCTIONS)
 
@@ -174,6 +175,7 @@ def run(repo, output_root, *, request_id=None):
         'fixed_files_sha256': {name: digest(source) for name, source in fixed.items()},
         'runner_image': checker.runner.image_id, 'worker_image': worker.image_id,
         'checker_isolation': 'docker', 'worker_attempts': worker.attempt_records,
+        'worker_timeout_s': WORKER_TIMEOUT_S,
         'duration_s': round(time.perf_counter() - started, 6), 'comparison': comparison,
         'authentication': 'chatgpt', 'model_cost': None, 'model_calls': None,
         'model_usage_measured': bool(worker.attempt_records) and all(r.get('usage') is not None for r in worker.attempt_records),

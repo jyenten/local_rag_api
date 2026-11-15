@@ -16,6 +16,7 @@ from experiments.dev_loop.citations import probe
 from experiments.dev_loop import publish
 from experiments.dev_loop.registered_tasks import BM25, CITATIONS, get_registered_task
 from experiments.dev_loop.tests.test_publish import FakeGitHub, BASE, TREE, HEAD, IMAGE
+from experiments.dev_loop.tests.test_codex_docker import transport, events
 
 ROOT = Path(__file__).resolve().parents[3]
 result = run_process(['git', 'show', task.MANIFEST['source_commit'] + ':' + task.TARGET], ROOT,
@@ -37,6 +38,32 @@ def reference_change(original):
 
 
 CANDIDATE = reference_change(ORIGINAL)
+
+
+@pytest.mark.parametrize('timed_out', [False, True])
+def test_citation_deadline_reaches_attach_and_timeout_never_retries_or_writes(tmp_path, monkeypatch, timed_out):
+    calls = transport(monkeypatch, tmp_path, events(CANDIDATE))
+    worker = task.CitationWorker(ORIGINAL)
+    assert worker.timeout == get_registered_task(CITATIONS).worker_timeout_s == 180
+    assert get_registered_task(BM25).worker_timeout_s == 90
+    if timed_out:
+        from experiments.dev_loop import codex_docker
+        def timeout(command, cwd, **kwargs):
+            calls.append((command, kwargs))
+            assert kwargs['timeout'] == 180
+            raise InfrastructureError('Container timed out after 180s')
+        monkeypatch.setattr(codex_docker, 'bounded_process', timeout)
+        with pytest.raises(InfrastructureError, match='180s'):
+            worker.implement(tmp_path, 1, '')
+        assert (tmp_path / 'question.py').read_text(encoding='utf-8') == 'original'
+        assert worker.attempt_records[0]['completed'] is False
+        assert worker.attempt_records[0]['usage'] is None
+    else:
+        worker.implement(tmp_path, 1, '')
+        assert (tmp_path / 'question.py').read_text(encoding='utf-8') == CANDIDATE
+    attaches = [kwargs for command, kwargs in calls if command[1] == 'start']
+    assert len(attaches) == 1 and attaches[0]['timeout'] == 180
+    assert calls[-1][0][1:3] == ['rm', '--force']
 
 
 @pytest.fixture

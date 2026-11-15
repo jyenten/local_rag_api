@@ -7,8 +7,9 @@
 Import `experiments/dev_loop/n8n-control-workflow.json` to put an operator form in
 front of the existing controller on port 8766. n8n selects an action, shows its
 plan and collects a decision. LangGraph controls implementation and at most two
-repairs; independent checks run in offline Docker. Publication is a separately
-approved action. The owner continues to approve merges.
+repairs; independent checks run in offline Docker. After one plan approval,
+`autonomous` continues automatically through the report and draft PR. `generate`
+and `publish` still support separate approvals. The owner approves merges.
 
 The catalog contains historical `bm25-tokenize-once` and registered
 [`retrieval-citation-provenance`](DEV_LOOP_CITATION_TASK.md). BM25 is completed
@@ -27,7 +28,7 @@ the owner's existing installation:
 cd D:\AI_roadmap_n8n_publication
 git status -sb
 git fetch origin
-git switch --detach origin/feat/dev-loop-n8n-control
+git switch --detach origin/feat/dev-loop-autonomous-prototype
 .\experiments\dev_loop\Start-DevLoop.ps1 -Action check
 .\experiments\dev_loop\Start-DevLoop.ps1 -Action start
 ```
@@ -66,6 +67,7 @@ separate integration step; unit/contract tests do not establish that result.
 | `catalog` | Empty | Registered tasks/runs and configuration; no model/publication |
 | `status` | Existing job or registered run | State without starting/repeating the model |
 | `report` | Successful job or registered run | Validated comparison and readable diff; no host paths/raw logs |
+| `autonomous` | Empty creates an ID; existing jobs can finish without another model call | One plan approval → baseline → Codex → checks / at most two repairs → report → Docker recheck → draft PR |
 | `generate` | Empty creates an ID; explicit ID accepted | Plan and approval, then generation/checks only, no publication |
 | `publish` | Successful job or registered run | Plan, candidate hash, diff and separate approval; recheck/draft PR without a model |
 
@@ -79,11 +81,57 @@ First run `catalog`, then copy an allowed UUID into a new `report` action. The
 owner's historical run is `a5739357-6da4-4118-be18-5c038306e0e9`; it works only
 when registered by the profile and its files remain available. No generation.
 
-Generation is a synchronous HTTP step with a 900-second timeout. Open the form in
+Generation is a synchronous HTTP step with an 1800-second timeout. Open the form in
 a second tab to select `status` with the same UUID while it runs. `generating` is
 aggregate state, not a token stream. The ID/progress are also in n8n Executions.
 After timeout inspect the original UUID before doing anything else; do not start
 a replacement model run. There are no automatic retries or remote worker kills.
+
+## Autonomous prototype: one complete cycle
+
+Activate the [registered citation repair](DEV_LOOP_CITATION_TASK.md) once: build
+its fixed checker and select `retrieval-citation-provenance` in the existing
+profile. Reuse the Codex image/auth volume, host GitHub login and n8n container.
+Import the updated `n8n-control-workflow.json` and select the same Basic Auth and
+Header Auth credentials as before.
+
+1. The catalog must show `generation_configured: true` and one remaining job.
+2. Select `autonomous`, `retrieval-citation-provenance`, and leave UUID empty.
+3. Review two allowed paths, two editable methods, the fixed regression file,
+   15 acceptance cases, at most 3 attempts, and automatic **draft** PR to `main`.
+   **Schválit** now authorizes this entire specific cycle.
+4. The running cycle needs no further human step. LangGraph repairs according to
+   test feedback; the publisher independently rechecks the accepted candidate in
+   the original offline Docker image and creates the draft PR. The result contains
+   its link, before/after evidence and diff.
+5. Success means `result.status: pr_ready` and both `report.comparison.after`
+   flags true. `ci_status: not_checked` does not establish passing GitHub CI.
+
+Baseline, infrastructure or three-attempt failure stops without publication.
+Publication failure stops as `publication_blocked`; after inspection approve a
+fresh plan using the **same UUID**. It binds the saved candidate hash and shows
+`generation_required: false`, `max_worker_attempts: 0`: retry publication only.
+An existing successful `generate` job can finish the same way. Use `publish` for
+historical registered runs, rather than treating them as new autonomous jobs.
+Interrupted jobs without `result.json` never regenerate, and completed jobs return
+saved state. The new-job allowance remains per process; restarting is neither a
+permanent financial cap nor authorization for more jobs.
+
+The prototype controls one registered development task. It does not select new
+tasks, merge, ingest or deploy. GitHub CI and security findings still require
+review before merge.
+
+## Verification boundaries
+
+Contract tests cover one approval, automatic handoff, failures, retries, stale
+hashes and compatibility with separate actions. Node.js evaluates workflow
+expressions, including safe diff rendering and the PR link.
+
+CI `citation-checker` additionally exercises HTTP → LangGraph → real offline
+Docker → repair → Docker recheck → publisher. Its worker is an explicitly
+scripted reference and GitHub is fake: no live model calls or public PR creation.
+Live Codex, import/execution in the owner's n8n, and actual PR publication are
+separate integration checks requiring evidence from a concrete run.
 
 ## Troubleshooting
 

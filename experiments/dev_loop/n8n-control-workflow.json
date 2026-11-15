@@ -1,5 +1,5 @@
 {
-  "name": "Local RAG — ovládání, kontrola a schválení",
+  "name": "Local RAG — autonomní běh a ovládání",
   "active": false,
   "nodes": [
     {
@@ -14,7 +14,7 @@
       "parameters": {
         "authentication": "basicAuth",
         "formTitle": "Local RAG — ovládání úloh",
-        "formDescription": "catalog = seznam úloh; status = stav; report = diff a důkazy; generate = návrh bez publikace; publish = draft PR po schválení. BM25 je historický; retrieval-citation-provenance opravuje přiřazení zdrojů. Pro první kontrolu zvol catalog.",
+        "formDescription": "autonomous = jednou schválíš celý běh: baseline → Codex → testy → nejvýše dvě opravy → report → nové ověření → draft PR. Další lidský krok během běhu není. Merge zůstává ruční. catalog/status/report nic nespouští; generate/publish zachovávají oddělené schvalování.",
         "formFields": {
           "values": [
             {
@@ -37,6 +37,9 @@
                   },
                   {
                     "option": "publish"
+                  },
+                  {
+                    "option": "autonomous"
                   }
                 ]
               },
@@ -57,14 +60,14 @@
                   }
                 ]
               },
-              "defaultValue": "bm25-tokenize-once",
+              "defaultValue": "retrieval-citation-provenance",
               "requiredField": true
             },
             {
               "fieldName": "request_id",
               "fieldLabel": "ID běhu / úlohy (UUID)",
               "fieldType": "text",
-              "placeholder": "UUID z katalogu nebo předchozího výsledku",
+              "placeholder": "Prázdné pro nový generate/autonomous; jinak UUID původního běhu",
               "requiredField": false
             }
           ]
@@ -94,7 +97,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({action: $json.action, task_id: $json.task_id, request_id: ($json.request_id || '').trim() || ($json.action === 'generate' ? '00000000-0000-4000-8000-' + String($execution.id).padStart(12, '0') : null)}) }}",
+        "jsonBody": "={{ JSON.stringify({action: $json.action, task_id: $json.task_id, request_id: ($json.request_id || '').trim() || (['generate', 'autonomous'].includes($json.action) ? '00000000-0000-4000-8000-' + String($execution.id).padStart(12, '0') : null)}) }}",
         "options": {
           "timeout": 900000,
           "response": {
@@ -175,7 +178,7 @@
         },
         "options": {
           "formTitle": "Kontrola konkrétního plánu",
-          "formDescription": "={{ '<p>Schvaluješ pouze uvedenou akci. Generate nevytváří PR; publish znovu ověří uložený návrh a předá draft PR. Merge není povolen.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') + '</pre>' : '') }}",
+          "formDescription": "={{ '<p>Schvaluješ pouze uvedenou akci. Autonomous povoluje celý omezený běh včetně automatického draft PR po úspěšných testech; další schválení během něj nebude. Generate nevytváří PR; publish znovu ověří uložený návrh a předá draft PR. Merge není povolen.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') + '</pre>' : '') }}",
           "buttonLabel": "Potvrdit rozhodnutí"
         },
         "limitWaitTime": true,
@@ -236,7 +239,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({action: $('Zkontrolovat plán').first().json.action, task_id: $('Zkontrolovat plán').first().json.task_id, request_id: $('Zkontrolovat plán').first().json.request_id, approved: true, plan_sha256: $('Zkontrolovat plán').first().json.plan_sha256}) }}",
         "options": {
-          "timeout": 900000,
+          "timeout": 1800000,
           "response": {
             "response": {
               "responseFormat": "json"
@@ -259,7 +262,7 @@
         "operation": "completion",
         "respondWith": "text",
         "completionTitle": "Výsledek controlleru",
-        "completionMessage": "={{ '<p>Stav a ID najdeš níže. Pro další kontrolu otevři formulář znovu a zvol status nebo report se stejným UUID. Zelený HTTP uzel není schválení merge.</p><pre>' + JSON.stringify($json, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + ($json.result && $json.result.diff ? '<h3>Diff před / po</h3><pre>' + $json.result.diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') + '</pre>' : '') }}",
+        "completionMessage": "={{ (() => { const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); const report = $json.report || $json.result; const pr = $json.result && $json.result.publication && $json.result.publication.pull_request; const link = typeof pr === 'string' && /^https:\\/\\/github\\.com\\/jyenten\\/local_rag_api\\/pull\\/[1-9][0-9]*$/.test(pr) ? '<p><a href=\"' + esc(pr) + '\">Otevřít draft PR</a></p>' : ''; return '<p>Celý autonomní běh končí stavem pr_ready a draft PR, nebo vysvětleným zastavením. Merge se neprovádí; CI je samostatná kontrola. Pro status/report použij stejné UUID, po timeoutu nezakládej nový běh.</p>' + link + '<pre>' + esc(JSON.stringify($json, null, 2)) + '</pre>' + (report && report.diff ? '<h3>Diff před / po</h3><pre>' + esc(report.diff).replace(/\\n/g, '<br>') + '</pre>' : ''); })() }}",
         "options": {
           "appendAttribution": false
         }
