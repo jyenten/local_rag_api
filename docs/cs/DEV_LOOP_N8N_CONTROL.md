@@ -80,7 +80,7 @@ Nejprve spusť `catalog`, potom zkopíruj povolené UUID do nové akce `report`.
 Historický běh vlastníka je `a5739357-6da4-4118-be18-5c038306e0e9`; funguje pouze,
 pokud jej profil skutečně povoluje a soubory zůstávají dostupné. Nic se negeneruje.
 
-Generování je synchronní HTTP krok s timeoutem 900 sekund. Během něj lze otevřít
+Generování je synchronní HTTP krok s timeoutem 1800 sekund. Během něj lze otevřít
 formulář ve druhé kartě a zvolit `status` se stejným UUID. `generating` je souhrnný
 stav, ne tokenový stream. ID a průběh jsou také v n8n Executions. Po timeoutu
 nejprve ověř původní UUID, nevytvářej náhradní modelový běh. Automatické retry ani

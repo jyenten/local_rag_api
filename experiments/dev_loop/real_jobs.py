@@ -89,6 +89,7 @@ class RealJobs:
         return {'task_id': self.task_id, 'operations': ['generate', 'publish-existing', 'autonomous'],
                 'source_commit': self.revision, 'allowed_files': self.task.allowed_files,
                 'max_attempts': 3, 'max_new_jobs_this_session': self.max_new_jobs,
+                'worker_timeout_s': self.task.worker_timeout_s,
                 'new_jobs_remaining': self.max_new_jobs - self.used, 'merge_allowed': False}
 
     def paths(self, request_id):

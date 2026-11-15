@@ -35,6 +35,10 @@ class RegisteredTask:
     def allowed_files(self):
         return [self.target, *self.fixed_files]
 
+    @property
+    def worker_timeout_s(self):
+        return 90 if self.task_id == BM25 else self.module.WORKER_TIMEOUT_S
+
     def public_comparison(self, comparison):
         if self.task_id == CITATIONS:
             self.module.validate_comparison(comparison)

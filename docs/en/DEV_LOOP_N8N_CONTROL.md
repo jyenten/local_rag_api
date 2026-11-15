@@ -81,7 +81,7 @@ First run `catalog`, then copy an allowed UUID into a new `report` action. The
 owner's historical run is `a5739357-6da4-4118-be18-5c038306e0e9`; it works only
 when registered by the profile and its files remain available. No generation.
 
-Generation is a synchronous HTTP step with a 900-second timeout. Open the form in
+Generation is a synchronous HTTP step with an 1800-second timeout. Open the form in
 a second tab to select `status` with the same UUID while it runs. `generating` is
 aggregate state, not a token stream. The ID/progress are also in n8n Executions.
 After timeout inspect the original UUID before doing anything else; do not start

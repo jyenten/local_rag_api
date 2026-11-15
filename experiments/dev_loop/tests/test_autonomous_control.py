@@ -21,6 +21,7 @@ def test_one_approval_generates_checks_and_publishes_with_report(panel):
     assert plan['plan']['draft'] is True and plan['plan']['merge_allowed'] is False
     assert plan['plan']['max_worker_attempts'] == 3 and plan['plan']['generation_required'] is True
     assert plan['plan']['acceptance_test_count'] == 15
+    assert plan['plan']['worker_timeout_s'] == task.WORKER_TIMEOUT_S == 180
     assert plan['plan']['worker_allowed_files'] == [task.TARGET]
     assert panel.generated == [] and panel.published == [] and panel.jobs.used == 0
     response = execute(panel, plan)
@@ -60,6 +61,7 @@ def test_failed_generation_stops_cycle_without_publication_or_automatic_new_id(p
         return report, directory
     panel.jobs.generator = failed
     result = execute(panel, preview(panel, 'autonomous').json()).json()
+    assert result['status'] == 'failed'
     assert result['result']['status'] == 'generation_failed' and 'report' not in result
     assert preview(panel, 'autonomous').json()['result']['status'] == 'generation_failed'
     assert preview(panel, 'autonomous', str(uuid.uuid4())).json()['error_code'] == 'NEW_JOB_ALLOWANCE_CONSUMED'
@@ -74,6 +76,7 @@ def test_publication_failure_keeps_candidate_and_retry_never_calls_model(panel):
         raise InfrastructureError('private publication diagnostics')
     panel.jobs.publisher = failed
     result = execute(panel, preview(panel, 'autonomous').json())
+    assert result.json()['status'] == 'blocked'
     assert result.json()['result']['status'] == 'publication_blocked'
     assert 'private publication' not in result.text
     retry = preview(panel, 'autonomous').json()

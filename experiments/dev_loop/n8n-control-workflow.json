@@ -239,7 +239,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({action: $('Zkontrolovat plán').first().json.action, task_id: $('Zkontrolovat plán').first().json.task_id, request_id: $('Zkontrolovat plán').first().json.request_id, approved: true, plan_sha256: $('Zkontrolovat plán').first().json.plan_sha256}) }}",
         "options": {
-          "timeout": 900000,
+          "timeout": 1800000,
           "response": {
             "response": {
               "responseFormat": "json"

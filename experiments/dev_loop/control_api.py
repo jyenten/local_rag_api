@@ -122,7 +122,8 @@ class ControlPanel:
         task = get_registered_task(body.task_id)
         plan = {'action': body.action, 'task_id': body.task_id, 'request_id': request_id,
                 'repository': REPOSITORY, 'allowed_files': task.allowed_files,
-                'max_attempts': 3, 'checker_isolation': 'docker', 'merge_allowed': False}
+                'max_attempts': 3, 'worker_timeout_s': task.worker_timeout_s,
+                'checker_isolation': 'docker', 'merge_allowed': False}
         if task.fixed_files:
             plan.update(worker_allowed_files=[task.target], editable_methods=task.manifest['allowed_methods'],
                         fixed_files_sha256={name: digest(source) for name, source in task.fixed_files.items()},
@@ -214,7 +215,9 @@ class ControlPanel:
         values = {'result': result}
         if body.action == 'autonomous' and result['status'] == 'pr_ready':
             values['report'] = self.report(request_id, body.task_id)
-        return self.envelope(body, 'completed', **values)
+        outcome = {'generation_failed': 'failed', 'generation_error': 'failed',
+                   'publication_blocked': 'blocked'}.get(result.get('status'), 'completed')
+        return self.envelope(body, outcome, **values)
 
 
 def install_control_routes(app, runs_root, registered, publisher, jobs, lock):

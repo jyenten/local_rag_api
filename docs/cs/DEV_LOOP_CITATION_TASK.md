@@ -98,7 +98,7 @@ vyšší limit k obcházení stavu. Starý kombinovaný `/jobs` endpoint je při
 této úlohy vypnutý (410); používej control workflow s přesným plánem (`autonomous`
 nebo oddělené `generate` / `publish`).
 Zrušení plánu nepouští model ani publikaci. Schvalovací formulář čeká nejvýše 10
-minut, HTTP akce 900 sekund a workflow má celkový limit 45 minut.
+minut, HTTP akce 1800 sekund a workflow má celkový limit 45 minut.
 
 ## Ověření registrace
 
@@ -116,3 +116,30 @@ Remove-Item Env:DEV_LOOP_CITATION_DOCKER_TESTS
 Toto ověření nevolá model a nepublikuje PR. Chroma audit zůstává nezávislý a jeho
 červený výsledek tímto testem není prominutý. Skutečný modelový běh a uživatelův
 Docker/n8n import se vykazují samostatně od ověření registrace.
+
+## Timeout workeru
+
+Citace vrací celý modul; worker má pevný limit 180 sekund na implementační pokus
+(`worker_timeout_s` v plánu i uloženém reportu). Starší worker používal obecný
+limit 90 sekund. Počet pokusů zůstává nejvýše 3 a limit nových jobů se nezvyšuje.
+Provedení v aktualizovaném n8n workflow čeká nejvýše 1800 sekund, preview 900
+sekund; delší HTTP limit poskytuje prostor také kontrolám a publikaci.
+
+`Container timed out` v kroku `implement` znamená, že attach do Codex workeru
+nevrátil dokončený výsledek v limitu. Samo o sobě to nedokazuje chybu kódu,
+přihlášení, sítě ani příliš pomalý model. Spotřeba neúplného volání je neznámá.
+Kontejner se uklidí, neúplný výstup nezapíše kandidáta a timeout nepouští
+automatickou opravu ani publikaci. Vrchní stav akce je při selhání `failed`,
+při zastavené publikaci `blocked`; podrobnější stav zůstává v `result`.
+
+Před dalším schváleným během ověř uložené přihlášení (nevolá model):
+
+```powershell
+docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges=true --mount type=volume,source=local-rag-codex-auth,target=/home/node/.codex local-rag-codex:0.162.1 -c cli_auth_credentials_store=file -c forced_login_method=chatgpt login status
+```
+
+Úspěšný login status ověřuje uložené přihlášení, nikoli aktuální dosažitelnost
+modelu nebo dostupnou kvótu. Zachovej neúspěšné UUID a jeho report. Nový běh
+vyžaduje nový konkrétní plán a souhlas; nemanipuluj se stavem jobu, nemaž jej
+a nezvyšuj allowance kvůli opakování. Změna Python controlleru nevyžaduje build
+Codex ani checker image.

@@ -107,6 +107,9 @@ def test_report_and_approval_render_untrusted_code_as_text_with_readable_diff():
 
 
 def test_autonomous_option_uses_one_bound_plan_and_displays_its_final_report_and_pr():
+    assert NODES['Zkontrolovat plán']['parameters']['options']['timeout'] == 900000
+    assert NODES['Provést schválenou akci']['parameters']['options']['timeout'] == 1800000
+    assert FLOW['settings']['executionTimeout'] == 2700
     trigger = NODES['Ovládání úloh']['parameters']
     fields = {f['fieldName']: f for f in trigger['formFields']['values']}
     assert 'autonomous' in [item['option'] for item in fields['action']['fieldOptions']['values']]

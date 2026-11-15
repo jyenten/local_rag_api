@@ -101,7 +101,7 @@ ID, restart or higher allowance. The old combined `/jobs` endpoint is disabled
 for this selected task (410); use the control workflow with an exact plan
 (`autonomous` or separate `generate` / `publish`). Cancel
 invokes neither model nor publisher. Approval waits at most 10 minutes, the HTTP
-action at most 900 seconds, and the workflow has a 45-minute overall limit.
+action at most 1800 seconds, and the workflow has a 45-minute overall limit.
 
 ## Registration validation
 
@@ -119,3 +119,30 @@ Remove-Item Env:DEV_LOOP_CITATION_DOCKER_TESTS
 This validation invokes no model and publishes no PR. The independent Chroma audit
 is not waived. Live model execution and owner-side Docker/n8n import are reported
 separately from registration validation.
+
+## Worker timeout
+
+Citation generation returns a complete module and has a fixed 180-second limit
+per implementation attempt (`worker_timeout_s` in the plan and saved report).
+The older worker inherited the generic 90-second limit. At most 3 attempts and
+the existing new-job allowance remain unchanged. The updated n8n execution step
+waits at most 1800 seconds, preview 900 seconds, allowing additional time for
+checks and publication.
+
+`Container timed out` in `implement` means Codex attach did not return a complete
+result within the deadline. Alone it does not establish a code, login, network
+or model-speed fault. Incomplete invocation usage remains unknown. Cleanup
+removes the container; partial output never replaces the candidate, and timeout
+does not automatically retry or publish. The outer action state is `failed` for
+generation failure and `blocked` for publication failure; details remain in `result`.
+
+Before another approved run, inspect saved login without calling the model:
+
+```powershell
+docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges=true --mount type=volume,source=local-rag-codex-auth,target=/home/node/.codex local-rag-codex:0.162.1 -c cli_auth_credentials_store=file -c forced_login_method=chatgpt login status
+```
+
+Successful login status checks saved authentication, not current model
+reachability or quota. Preserve the failed UUID/report. Another run needs a new
+concrete approved plan; never edit/delete job state or raise its allowance to
+repeat it. Updating the Python controller requires no Codex/checker image rebuild.
